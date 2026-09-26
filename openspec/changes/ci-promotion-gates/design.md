@@ -14,30 +14,8 @@ Use distinct `ui-promotion`, `preview-promotion`, and `windows-promotion` summar
 
 The target branch must require each workflow's summary context, distinguished by workflow name if needed. A base/head update must invalidate old checks through normal GitHub PR check semantics. Verify this on hosted GitHub before declaring enforcement complete. Without admin-configured branch protection and a failing disposable PR proof, hosted enforcement is blocked.
 
-## Exact proposed snippet
-
-UI job appended under `jobs:`:
-
-```yaml
-  ui-promotion:
-    if: always()
-    needs:
-      - rust-quality
-      - session-sync-regressions
-      - ui-tests
-      - macos-frame-recovery
-      - ios-tests
-      - linux-browser
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Require every CI job
-        env:
-          RESULTS: ${{ toJSON(needs) }}
-        run: |
-          python3 -c 'import json,sys; results=json.loads(sys.argv[1]); failed=[name for name,job in results.items() if job["result"] != "success"]; print("non-success jobs:", failed); sys.exit(bool(failed))' "$RESULTS"
-```
-
-Preview uses `needs: [networking, coordinator]`; Windows uses `needs: [tests]`. Use `runs-on: ubuntu-latest` for those two. Keep existing `permissions: contents: read`. Remove only `pull_request.paths` in all three workflows.
+## Single code authority
+The complete YAML and test source live only in tasks.md. Do not copy an earlier design snippet or a predicate that iterates only present jobs: an empty/missing needs object must fail. The exact tasks require all named jobs, bash explicitly, and a native dependency result of success. The design defines semantics, not duplicate executable code.
 
 ## Scenarios
 - C01: Given two independently green changes with conflicting combined behavior, when integrated CI fails, then neither combined round nor its dependents promote.
@@ -52,3 +30,6 @@ Use the complete corrected YAML blocks in tasks.md as code authority. Summary st
 
 ## Refined handoff validation
 Exact three YAML summary predicates extracted from tasks.md passed15 positive/empty/skipped/failed/cancelled controls. Proposed stdlib test ran red against unchanged workflow copies and green (8 tests) after appending the proposed summaries in scratch only. This is synthetic proposal validation, not hosted CI or branch protection. No workflow file was modified.
+
+## Current handoff validation21:12UTC
+Supersedes historical8-test substring checks: actual summary commands executed against full scratch workflow copies; installed actionlint passed. Exact structural extraction rejects missing needs, PR path filters and conditional iOS after multiline assertion correction. Round consistency checker12 tests passes but is explicitly untrusted and only eligible_for_review. Required hosted ruleset proof remains an external acceptance task, not a reason to invent local success.
