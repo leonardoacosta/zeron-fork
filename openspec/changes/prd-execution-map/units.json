@@ -28,7 +28,9 @@
       "The currently observed formatter/clippy baseline is not proven green; repair it in scope before admitting later rounds."
     ],
     "rollback": "Revert workflow changes without deleting historical artifacts. Never modify deploy/release triggers to run on planning branches. Preserve read-only permissions; no secrets in untrusted pull-request jobs.",
-    "gate": "Run documented quality/test commands and demonstrate an intentionally failing disposable branch cannot promote; no real release or hosted mutation is needed."
+    "gate": "Run documented quality/test commands and demonstrate an intentionally failing disposable branch cannot promote; no real release or hosted mutation is needed.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Exact summary jobs/tests drafted and scratch-validated; round evidence/provenance and clean baseline still require final review."
   },
   {
     "slug": "dependency-attribution",
@@ -61,7 +63,9 @@
       "Do not infer commercial distribution permission from successful compilation."
     ],
     "rollback": "Add notices without altering user data. Rebuild package if notice content corrected; preserve original license texts.",
-    "gate": "Inspect actual generated package contents and exact pinned licenses; unresolved terms routed to human review without invented conclusions."
+    "gate": "Inspect actual generated package contents and exact pinned licenses; unresolved terms routed to human review without invented conclusions.",
+    "readiness": "research_executable",
+    "readiness_reason": "Bounded evidence collection and validation steps executable; unresolved findings do not authorize provider implementation or distribution."
   },
   {
     "slug": "integration-harness-observer-research",
@@ -94,7 +98,9 @@
       "Do not create a generic adapter framework before verified concrete need."
     ],
     "rollback": "Research changes only canonical design/spec/tasks. No installing/upgrading providers, changing defaults, credentials or spend without separate scoped authority.",
-    "gate": "Pinned official source/API references plus read-only local version/capability probes when authorized; output exact adapter contracts or explicit blocked decisions."
+    "gate": "Pinned official source/API references plus read-only local version/capability probes when authorized; output exact adapter contracts or explicit blocked decisions.",
+    "readiness": "research_executable",
+    "readiness_reason": "Bounded evidence collection and validation steps executable; unresolved findings do not authorize provider implementation or distribution."
   },
   {
     "slug": "integration-github-ado-research",
@@ -127,7 +133,9 @@
       "Never dump credentials while probing versions."
     ],
     "rollback": "Research only, read-only probes scoped to approved systems. Adapter rollback must preserve external source of truth and reconcile effects.",
-    "gate": "Exact provider/version capability matrix and authoritative-source mapping; write probes await named sandbox authorization."
+    "gate": "Exact provider/version capability matrix and authoritative-source mapping; write probes await named sandbox authorization.",
+    "readiness": "research_executable",
+    "readiness_reason": "Bounded evidence collection and validation steps executable; unresolved findings do not authorize provider implementation or distribution."
   },
   {
     "slug": "integration-browser-research",
@@ -158,7 +166,9 @@
       "Do not pick a provider based only on available skill name."
     ],
     "rollback": "No user browser profile mutation during research; disposable fixtures only under authorized scope. Preserve existing browser unchanged.",
-    "gate": "Harmless local page/isolation probe where possible; unresolved provider decision explicitly blocks scoped-browser-capability implementation."
+    "gate": "Harmless local page/isolation probe where possible; unresolved provider decision explicitly blocks scoped-browser-capability implementation.",
+    "readiness": "research_executable",
+    "readiness_reason": "Bounded evidence collection and validation steps executable; unresolved findings do not authorize provider implementation or distribution."
   },
   {
     "slug": "foundation-compatibility",
@@ -193,7 +203,9 @@
       "A version string shared by upstream/fork does not identify binary bytes."
     ],
     "rollback": "Use isolated data and preserve installed original app; service tests stop only owned fixtures. Do not reboot user machines without interruption authorization.",
-    "gate": "Existing native suites plus installed Mac/homelab test evidence reconciled to commit/binary identity; lifecycle caveats explicit."
+    "gate": "Existing native suites plus installed Mac/homelab test evidence reconciled to commit/binary identity; lifecycle caveats explicit.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "work-profile-catalog",
@@ -225,7 +237,9 @@
       "Principal and actor are owner context, not untrusted request labels."
     ],
     "rollback": "Additive unused catalog only; do not advertise runtime capability. Future schema refused before mutation; retain legacy stores unchanged.",
-    "gate": "Exact proto/catalog production tests plus real SQLite concurrent CAS, trigger rollback/reopen, poison/future-schema negatives. No runtime isolation claim."
+    "gate": "Exact proto/catalog production tests plus real SQLite concurrent CAS, trigger rollback/reopen, poison/future-schema negatives. No runtime isolation claim.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Full wire/catalog code extracted and tested; final exact-code quality/cold integration review pending before implementation-ready label."
   },
   {
     "slug": "profile-access-enforcement",
@@ -263,7 +277,9 @@
       "Do not snapshot raw credentials or copy all host environment variables into children."
     ],
     "rollback": "Roll back enforcement code only with execution disabled for newly bound profiles. Never turn unknown policy into allow to preserve compatibility.",
-    "gate": "Instrument real engine dispatch boundaries and prove unauthorized paths perform zero protected reads/effects; approved isolated account succeeds."
+    "gate": "Instrument real engine dispatch boundaries and prove unauthorized paths perform zero protected reads/effects; approved isolated account succeeds.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "harness-preflight-binding",
@@ -298,7 +314,9 @@
       "Ordinary engineering uses the configured engineer once, not an implicit comparison."
     ],
     "rollback": "Preserve existing direct-session records; gate only capabilities whose policy requires proof. Retain prior configuration/version evidence and reject unsupported downgrade.",
-    "gate": "Adapter argument/protocol tests plus one authorized native harness preflight; token-spending execution requires separate bounded budget."
+    "gate": "Adapter argument/protocol tests plus one authorized native harness preflight; token-spending execution requires separate bounded budget.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "revision-evidence-bindings",
@@ -332,7 +350,9 @@
       "Existing evidence strings are not already a complete provenance schema."
     ],
     "rollback": "Add typed records alongside legacy strings; legacy remains explicitly unverified. Never backfill fabricated observations. Preserve immutable historical bindings on rollback.",
-    "gate": "Real create/edit/restart/read workflow proving stale invalidation and exact evidence retrieval, with synthetic fixtures separately tagged."
+    "gate": "Real create/edit/restart/read workflow proving stale invalidation and exact evidence retrieval, with synthetic fixtures separately tagged.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "work-profile-boundary",
@@ -365,7 +385,9 @@
       "Do not remap historical assignments to whichever profile is active now."
     ],
     "rollback": "Additive migration with a backup and old-store compatibility check. Downgrade must refuse unsupported bindings rather than merge profiles. Retain legacy source data.",
-    "gate": "Two-profile runtime owner/client and exact daemon binding checks; legacy roots held read-only. Import execution belongs to work-profile-legacy-migration."
+    "gate": "Two-profile runtime owner/client and exact daemon binding checks; legacy roots held read-only. Import execution belongs to work-profile-legacy-migration.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "run-resource-ledger",
@@ -400,7 +422,9 @@
       "No resource guarantee without a capability that enforces it."
     ],
     "rollback": "Append-only ledger migration; reconcile outstanding reservations before rollback. Do not discard charges or return allocations until effects are known.",
-    "gate": "Concurrent reservation/restart integration and provider fixture with duplicated/missing usage; real supported provider observations separately labelled."
+    "gate": "Concurrent reservation/restart integration and provider fixture with duplicated/missing usage; real supported provider observations separately labelled.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "confirmed-stop-handoff",
@@ -436,7 +460,9 @@
       "Priority never authorizes interruption."
     ],
     "rollback": "Persist lifecycle transition before acknowledgment. Downgrade active/uncertain work to hold; no replay of unconfirmed external effects.",
-    "gate": "Real harmless subprocess with descendant writes proves last write/exit boundary; native harness-specific stopping requires its own evidence."
+    "gate": "Real harmless subprocess with descendant writes proves last write/exit boundary; native harness-specific stopping requires its own evidence.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "workflow-version-selection",
@@ -469,7 +495,9 @@
       "Triggers later name a version/selection contract rather than reuse interactive guessing."
     ],
     "rollback": "Immutable versions and additive references; old readers fail explicitly on unsupported workflow versions. Roll back default pointers without rewriting active runs.",
-    "gate": "Precedence, version pinning, invalid override and restart tests through owner RPC; UI explanation delivered by presentation changes."
+    "gate": "Precedence, version pinning, invalid override and restart tests through owner RPC; UI explanation delivered by presentation changes.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "safe-resume-reconciliation",
@@ -503,7 +531,9 @@
       "Do not reset evidence/usage on restart."
     ],
     "rollback": "Keep original journal immutable or backed up; new recovery metadata additive. If reader cannot understand uncertainty state, fail closed and retain data.",
-    "gate": "Crash-boundary subprocess tests and authorized native restart with revoked-policy negative case; no external side effect replay."
+    "gate": "Crash-boundary subprocess tests and authorized native restart with revoked-policy negative case; no external side effect replay.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "verification-acceptance-gates",
@@ -538,7 +568,9 @@
       "Do not combine booleans that permit impossible state combinations."
     ],
     "rollback": "Persist decision and inputs atomically, append revisions instead of rewriting past approvals. Rollback holds unsupported decisions.",
-    "gate": "Owner RPC transitions with stale/revoked/external-rejection cases and restart at decision commit boundary."
+    "gate": "Owner RPC transitions with stale/revoked/external-rejection cases and restart at decision commit boundary.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "exception-attention",
@@ -572,7 +604,9 @@
       "System One alert is not an authorization grant."
     ],
     "rollback": "Keep exception records even when delivery disabled. Fallback in-product activity/blocked state remains; no auto-resume during rollback.",
-    "gate": "Native notification/activity integration plus delivery-failure/restart/grouping and cross-profile redaction assertions."
+    "gate": "Native notification/activity integration plus delivery-failure/restart/grouping and cross-profile redaction assertions.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "manual-investigation-runner",
@@ -610,7 +644,9 @@
       "Store creation/promotion must still perform zero harness launches."
     ],
     "rollback": "Existing assignments remain records until explicit launch. Pause/hold active runs before downgrade; preserve run IDs and findings.",
-    "gate": "First real end-to-end investigation on harmless local repository: launch, stop, replace, restart, accepted findings; bounded authorized harness budget."
+    "gate": "First real end-to-end investigation on harmless local repository: launch, stop, replace, restart, accepted findings; bounded authorized harness budget.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "integration-provider-adapters",
@@ -646,7 +682,9 @@
       "Integration availability does not authorize mutations."
     ],
     "rollback": "Per-provider disable switch and native state/effect reconciliation before removal. Preserve other adapters and direct sessions.",
-    "gate": "One real harmless authorized workflow per selected adapter and failure/unknown capability checks. Unselected providers remain blocked, not marked complete."
+    "gate": "One real harmless authorized workflow per selected adapter and failure/unknown capability checks. Unselected providers remain blocked, not marked complete.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "work-profile-legacy-migration",
@@ -679,7 +717,9 @@
       "No live credential copy or auto-selection by profile label."
     ],
     "rollback": "Keep source immutable; retain staging and incomplete marker for diagnosis. Never delete original or overwrite target. Revert capability without erasing migration receipts.",
-    "gate": "Real isolated old-store fixtures with source digest drift, partial-copy fault, target collision, atomic publish/reopen and zero harness starts."
+    "gate": "Real isolated old-store fixtures with source digest drift, partial-copy fault, target collision, atomic publish/reopen and zero harness starts.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "assignment-desktop-surface",
@@ -718,7 +758,9 @@
       "Do not independently invent a sidebar/navigation redesign."
     ],
     "rollback": "Feature-gate presentation, keep stored records intact; remove UI entry points without deleting assignments. Preserve old client capability behavior.",
-    "gate": "Native GPUI workflow with actual owner/client, keyboard/focus/accessibility checks and zero implicit assignments."
+    "gate": "Native GPUI workflow with actual owner/client, keyboard/focus/accessibility checks and zero implicit assignments.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "delivery-effect-ledger",
@@ -753,7 +795,9 @@
       "Deploy is not always cloud hosting; preserve explicit destination semantics."
     ],
     "rollback": "Append-only effect records retained across downgrade. Disable new dispatch if reconciliation unsupported; never delete uncertainty to unblock work.",
-    "gate": "Controlled local external-effect fixture with crash boundaries, plus each adapter's separate authorized real destination gate."
+    "gate": "Controlled local external-effect fixture with crash boundaries, plus each adapter's separate authorized real destination gate.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "conflict-admission-observer",
@@ -788,7 +832,9 @@
       "Do not fabricate SystemOne API or replace engineering harness with it."
     ],
     "rollback": "Admission records/leases durable; downgrade stops new overlapping launches, preserves already-running ownership and uncertainty.",
-    "gate": "Concurrent direct-session plus assignment admission with resource conflicts, unknown observer and changed-scope checks; provider-specific SystemOne evidence separately required."
+    "gate": "Concurrent direct-session plus assignment admission with resource conflicts, unknown observer and changed-scope checks; provider-specific SystemOne evidence separately required.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "engineering-stage-runner",
@@ -825,7 +871,9 @@
       "Do not conflate stage success, candidate acceptance and delivery authorization."
     ],
     "rollback": "Hold active stage execution with confirmed stopping before downgrade; preserve candidate bytes, run bindings and evidence. No reset of user working tree as rollback.",
-    "gate": "Real harmless local repository: accepted proposal to one engineer implementation, exact candidate capture, failing then passing independent check, no unauthorized delivery."
+    "gate": "Real harmless local repository: accepted proposal to one engineer implementation, exact candidate capture, failing then passing independent check, no unauthorized delivery.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "assignment-mobile-parity",
@@ -860,7 +908,9 @@
       "Do not claim physical-device acceptance from Swift decoding tests only."
     ],
     "rollback": "Additive decoding and capability flags; retain previous compatible read path. No forced desktop data migration for mobile layout.",
-    "gate": "Existing iOS unit CI plus authorized simulator/device-to-owner workflow and disconnected/stale-revision checks."
+    "gate": "Existing iOS unit CI plus authorized simulator/device-to-owner workflow and disconnected/stale-revision checks.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "git-delivery-actions",
@@ -894,7 +944,9 @@
       "No force push or deleting user branches as rollback."
     ],
     "rollback": "Disable action dispatch, preserve external links/effect ledger. Rollback cannot undo a pushed/merged effect by pretending it never occurred.",
-    "gate": "Local bare-remote push first; actual authorized sandbox GitHub/ADO create/merge with exact head verification and provider failure paths."
+    "gate": "Local bare-remote push first; actual authorized sandbox GitHub/ADO create/merge with exact head verification and provider failure paths.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "release-deploy-publish-actions",
@@ -929,7 +981,9 @@
       "Do not invent an entire release train/lifecycle."
     ],
     "rollback": "Per-target rollback recipe required before dispatch; back up user data and executable, never destructive blanket cleanup. External irreversible effects require explicit reconciliation.",
-    "gate": "Harmless local install with service recovery and rollback, then separately authorized external destinations only when selected."
+    "gate": "Harmless local install with service recovery and rollback, then separately authorized external destinations only when selected.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "priority-backlog",
@@ -962,7 +1016,9 @@
       "No changing priority based on model enthusiasm."
     ],
     "rollback": "Persist queue identity/order/blockers; freeze dispatch on downgrade and rebuild indices without losing original admission timestamps.",
-    "gate": "Concurrent queue/restart integration and actual-stop boundary with direct sessions included."
+    "gate": "Concurrent queue/restart integration and actual-stop boundary with direct sessions included.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "accepted-output-dependencies",
@@ -994,7 +1050,9 @@
       "Reassessment is not automatic rollback of external effects."
     ],
     "rollback": "Keep immutable edge/output revisions and append invalidations. Downgrade blocks unknown graph semantics, not deleting edges.",
-    "gate": "Graph transaction/restart tests and real two-stage workflow proving exact-version binding and invalidation."
+    "gate": "Graph transaction/restart tests and real two-stage workflow proving exact-version binding and invalidation.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "scoped-browser-capability",
@@ -1032,7 +1090,9 @@
       "Never reset a password."
     ],
     "rollback": "Close only owned sessions, keep user browser untouched. Revoke scoped handles on rollback, no destructive global profile cleanup.",
-    "gate": "Actual chosen provider with two isolated browser profiles and harmless local authenticated fixture; external mutation needs separate scoped authorization."
+    "gate": "Actual chosen provider with two isolated browser profiles and harmless local authenticated fixture; external mutation needs separate scoped authorization.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "multi-repository-breakdown",
@@ -1068,7 +1128,9 @@
       "Do not require all repositories deploy at once."
     ],
     "rollback": "Add parent links without rewriting existing assignments; retain orphan/partial delivery status on rollback and hold new dispatch.",
-    "gate": "Two real local repositories with independent children, one dependency and budget/scope-denied child; restart restores editable breakdown."
+    "gate": "Two real local repositories with independent children, one dependency and budget/scope-denied child; restart restores editable breakdown.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "opt-in-trigger-launch",
@@ -1104,7 +1166,9 @@
       "Authentication of webhook does not authorize its requested mutation."
     ],
     "rollback": "Disable dispatch before rollback; retain event dedupe/provenance and pending approvals. Do not clear dedupe to recover a stuck event.",
-    "gate": "Local event replay/reorder/concurrent delivery with actual runner admission and resource-denied case; selected external event source separately verified."
+    "gate": "Local event replay/reorder/concurrent delivery with actual runner admission and resource-denied case; selected external event source separately verified.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "engineering-comparisons",
@@ -1140,7 +1204,9 @@
       "A provider marketing capability is not tested isolation."
     ],
     "rollback": "Keep isolated attempt directories/evidence until retention authorized. Abort/stop-confirm all attempts before cleanup; preserve external effects and costs.",
-    "gate": "Two bounded harmless local entrants on identical baseline, actual isolation tests, independent verifier and no-default-change assertions."
+    "gate": "Two bounded harmless local entrants on identical baseline, actual isolation tests, independent verifier and no-default-change assertions.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "profile-briefings",
@@ -1172,7 +1238,9 @@
       "Do not leak one profile into another briefing."
     ],
     "rollback": "Disable schedules before rollback, preserve delivery identity/history and user configuration. No replay of past messages without explicit policy.",
-    "gate": "Deterministic clock/scheduler tests plus actual authorized local notification destination; external email/chat destination separately authorized."
+    "gate": "Deterministic clock/scheduler tests plus actual authorized local notification destination; external email/chat destination separately authorized.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "combined-outcome-checks",
@@ -1206,7 +1274,9 @@
       "No universal simultaneous release gate."
     ],
     "rollback": "Persist combined-check input set and observations immutably; rollback withdraws unsupported completion claims but preserves delivery facts.",
-    "gate": "Real two-repository local consumer/provider compatibility check including stale delivered version and partial failure."
+    "gate": "Real two-repository local consumer/provider compatibility check including stale delivered version and partial failure.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   },
   {
     "slug": "profile-authorization-core",
@@ -1242,6 +1312,8 @@
       "Core pass does not satisfy runtime enforcement acceptance."
     ],
     "rollback": "Roll back enforcement code only with execution disabled for newly bound profiles. Never turn unknown policy into allow to preserve compatibility.",
-    "gate": "Exact core tests plus durable policy/CAS tests. No actual engine/harness/terminal enforcement claim."
+    "gate": "Exact core tests plus durable policy/CAS tests. No actual engine/harness/terminal enforcement claim.",
+    "readiness": "refinement_required",
+    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
   }
 ]

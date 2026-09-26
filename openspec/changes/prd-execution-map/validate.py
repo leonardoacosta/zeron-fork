@@ -31,6 +31,10 @@ def visit(slug):
 
 for unit in units:
     slug = unit['slug']
+    assert unit.get('readiness') in {'refinement_required', 'research_executable', 'implementation_ready'}, f'missing readiness: {slug}'
+    assert isinstance(unit.get('readiness_reason'), str) and unit['readiness_reason'].strip(), f'missing readiness evidence: {slug}'
+    if unit['readiness'] == 'implementation_ready':
+        assert unit.get('handoff_validation'), f'implementation readiness requires exact handoff evidence: {slug}'
     visit(slug)
     base = ROOT / 'openspec/changes' / slug
     texts = {}
