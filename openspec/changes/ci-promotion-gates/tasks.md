@@ -200,3 +200,364 @@ Revert the three workflow changes. Do not relax branch protection automatically.
 
 ## Exact workflow validation
 After applying the edits, run `actionlint -shellcheck= -pyflakes= .github/workflows/ui-tests.yml .github/workflows/preview-tests.yml .github/workflows/windows.yml` with an already installed actionlint. Expected exit0; absent validator is a named tooling prerequisite, not permission to claim syntax passed. Require up-to-date branch/merge checks so an old base cannot reuse earlier integrated-tree evidence.
+
+## Round evidence consistency check (never an authority source)
+**Proposed create:** `openspec/changes/ci-promotion-gates/verify_round.py`. This belongs to the canonical CI change, not a second task lifecycle. Inputs are a reviewed round manifest and CI-observation record retained as evidence attachments to tasks.md. Success means eligible_for_review only. No signature service, new secret or automatic merge/deploy consumer is introduced.
+
+- [ ] Create exact code below and run `python3 openspec/changes/ci-promotion-gates/verify_round.py --self-test`; require12 tests. Every failed required test blocks; evidence cannot change a manifest's test unit into research. Ignored tests must be predeclared non-required with separate coverage references; no waiver of required behavior.
+```python
+#!/usr/bin/env python3
+"""Untrusted consistency checker for an integrated-round evidence manifest.
+
+This tool only checks internal consistency of supplied JSON and emits
+"eligible_for_review". It cannot establish that run IDs, job conclusions, test
+counts, URLs, or artifact digests are true. A reviewer must independently verify
+provenance against native CI records before using this output.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+SCHEMA_VERSION = 1
+
+
+class EvidenceError(ValueError):
+    pass
+
+
+def _fail(message: str) -> None:
+    raise EvidenceError(message)
+
+
+def verify(manifest: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(record, dict):
+        _fail("evidence must be an object")
+
+    if manifest.get("schema_version") != SCHEMA_VERSION:
+        _fail("unsupported manifest schema")
+    target_sha = manifest.get("integrated_sha")
+    if not isinstance(target_sha, str) or not SHA_RE.fullmatch(target_sha):
+        _fail("manifest integrated_sha must be a full lowercase commit SHA")
+    if record.get("schema_version") != SCHEMA_VERSION:
+        _fail("unsupported evidence schema")
+    if record.get("integrated_sha") != target_sha:
+        _fail("evidence commit is stale or does not match integrated SHA")
+    if not isinstance(record.get("run_id"), str) or not record["run_id"].strip():
+        _fail("missing CI run_id")
+    provenance = record.get("producer_provenance")
+    if not isinstance(provenance, str) or not provenance.strip():
+        _fail("missing reviewer-verifiable producer provenance")
+    if not isinstance(record.get("run_url"), str) or not record["run_url"].strip():
+        _fail("missing native CI run URL")
+
+    unit_specs = manifest.get("required_units")
+    jobs = manifest.get("required_jobs")
+    if not isinstance(unit_specs, list) or not unit_specs or not isinstance(jobs, list) or not jobs:
+        _fail("manifest required_units and required_jobs must be non-empty lists")
+    unit_ids = []
+    for spec in unit_specs:
+        if not isinstance(spec, dict) or not isinstance(spec.get("id"), str) or not spec["id"].strip():
+            _fail("each required unit needs an id")
+        if spec.get("check_kind") not in ("test", "research"):
+            _fail(f"unit check_kind must be test or research: {spec.get('id')}")
+        if not _unique_nonempty_strings(spec.get("allowed_ignored_test_ids", [])) and spec.get("allowed_ignored_test_ids", []) != []:
+            _fail(f"invalid allowed ignored-test inventory: {spec.get('id')}")
+        if "allowed_failed_test_ids" in spec:
+            _fail(f"failed tests can never be waived: {spec.get('id')}")
+        ignored_allowance = spec.get("allowed_ignored_test_ids", [])
+        if not _unique_nonempty_strings(ignored_allowance) and ignored_allowance != []:
+            _fail(f"invalid allowed ignored-test inventory: {spec.get('id')}")
+        if ignored_allowance and not _unique_nonempty_strings(spec.get("ignored_coverage_refs")):
+            _fail(f"ignored tests require separate coverage evidence: {spec.get('id')}")
+        unit_ids.append(spec["id"])
+    if len(set(unit_ids)) != len(unit_ids) or not _unique_nonempty_strings(jobs):
+        _fail("manifest unit/job IDs must be unique non-empty strings")
+
+    _verify_units(record.get("units"), unit_specs, target_sha)
+    _verify_rows(record.get("jobs"), jobs, target_sha, "job")
+
+    return {
+        "decision": "eligible_for_review",
+        "integrated_sha": target_sha,
+        "run_id": record["run_id"],
+        "unit_count": len(unit_specs),
+        "job_count": len(jobs),
+        "limitation": "untrusted consistency check only; reviewer must verify native CI provenance; not promotion",
+    }
+
+
+def _unique_nonempty_strings(value: Any) -> bool:
+    return (isinstance(value, list) and bool(value)
+            and all(isinstance(item, str) and item.strip() for item in value)
+            and len(set(value)) == len(value))
+
+
+def _index_rows(rows: Any, required: list[str], sha: str, kind: str) -> dict[str, dict[str, Any]]:
+    if not isinstance(rows, list):
+        _fail(f"missing {kind} evidence rows")
+    by_id: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            _fail(f"malformed {kind} evidence row")
+        item_id = row.get("id")
+        if not isinstance(item_id, str) or item_id in by_id:
+            _fail(f"missing or duplicate {kind} id")
+        by_id[item_id] = row
+    for item_id in required:
+        row = by_id.get(item_id)
+        if row is None:
+            _fail(f"missing required {kind}: {item_id}")
+        allowed_statuses = {"success"} if kind != "unit" else {"success", "blocked"}
+        if row.get("status") not in allowed_statuses:
+            _fail(f"{kind} did not succeed: {item_id}")
+        if row.get("tested_sha") != sha:
+            _fail(f"stale {kind} evidence: {item_id}")
+        if not isinstance(row.get("evidence_ref"), str) or not row["evidence_ref"].strip():
+            _fail(f"missing evidence reference: {item_id}")
+        if not isinstance(row.get("artifact_digest"), str) or not DIGEST_RE.fullmatch(row["artifact_digest"]):
+            _fail(f"missing/invalid artifact digest: {item_id}")
+    return by_id
+
+
+def _count(row: dict[str, Any], field: str, item_id: str) -> int:
+    value = row.get(field)
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        _fail(f"missing or invalid {field}: {item_id}")
+    return value
+
+
+def _verify_units(rows: Any, required: list[dict[str, Any]], sha: str) -> None:
+    by_id = _index_rows(rows, [spec["id"] for spec in required], sha, "unit")
+    for spec in required:
+        item_id = spec["id"]
+        row = by_id[item_id]
+        kind = spec["check_kind"]
+        if row.get("check_kind") != kind:
+            _fail(f"evidence check_kind differs from manifest: {item_id}")
+        if kind == "test":
+            selected = _count(row, "selected_tests", item_id)
+            passed = _count(row, "passed_tests", item_id)
+            ignored = _count(row, "ignored_tests", item_id)
+            failed = _count(row, "failed_tests", item_id)
+            if failed != 0:
+                _fail(f"failed tests always block promotion: {item_id}")
+            if selected == 0 or passed != selected:
+                _fail(f"zero, partial, or missing selected/passed test counts: {item_id}")
+            _require_allowed_count_ids(row, "ignored_test_ids", ignored, spec.get("allowed_ignored_test_ids", []), item_id)
+            if ignored and not _unique_nonempty_strings(spec.get("ignored_coverage_refs")):
+                _fail(f"ignored tests lack manifest-listed separate coverage evidence: {item_id}")
+        else:
+            observations = row.get("observations_count")
+            if not isinstance(observations, int) or isinstance(observations, bool) or observations <= 0:
+                _fail(f"research unit requires at least one observation: {item_id}")
+            if row.get("status") == "blocked":
+                _fail(f"research unit is blocked: {item_id}")
+            if row.get("check_kind") != "research":
+                _fail(f"evidence check_kind differs from manifest: {item_id}")
+            refs = row.get("observation_refs")
+            if not isinstance(refs, list) or len(refs) != observations or not all(isinstance(x, str) and x.strip() for x in refs):
+                _fail(f"research observation references missing or count mismatch: {item_id}")
+
+
+def _require_allowed_count_ids(row: dict[str, Any], field: str, count: int, allowed: list[str], item_id: str) -> None:
+    ids = row.get(field, [])
+    if not isinstance(ids, list) or len(ids) != count or any(not isinstance(x, str) or not x.strip() for x in ids):
+        _fail(f"{field} must enumerate each counted test: {item_id}")
+    if len(set(ids)) != len(ids) or not set(ids).issubset(set(allowed)):
+        _fail(f"unapproved {field}: {item_id}")
+    if count and not allowed:
+        _fail(f"nonzero {field} requires explicit non-required inventory: {item_id}")
+
+
+def _verify_rows(rows: Any, required: list[str], sha: str, kind: str) -> None:
+    _index_rows(rows, required, sha, kind)
+
+
+def load_json(path: str) -> dict[str, Any]:
+    try:
+        value = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise EvidenceError(f"cannot read JSON input: {path}") from exc
+    if not isinstance(value, dict):
+        _fail(f"JSON input must be an object: {path}")
+    return value
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 3:
+        print("usage: verify_round.py MANIFEST.json EVIDENCE.json", file=sys.stderr)
+        return 2
+    try:
+        result = verify(load_json(argv[1]), load_json(argv[2]))
+    except EvidenceError as exc:
+        print(f"BLOCKED: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, sort_keys=True))
+    return 0
+
+
+def _self_test() -> None:
+    import copy
+    import unittest
+
+    sha = "a" * 40
+    manifest = {"schema_version": 1, "integrated_sha": sha,
+                "required_units": [
+                    {"id": "alpha", "check_kind": "test"},
+                    {"id": "beta", "check_kind": "research"},
+                ], "required_jobs": ["ui", "windows"]}
+
+    def artifact(label: str) -> str:
+        return "sha256:" + hashlib.sha256(label.encode()).hexdigest()
+
+    def fresh_record() -> dict[str, Any]:
+        return {
+            "schema_version": 1, "producer_provenance": "reviewer must match native CI run/job records",
+            "run_id": "run-123", "run_url": "https://ci.invalid/runs/run-123",
+            "integrated_sha": sha,
+            "units": [
+                {"id": "alpha", "check_kind": "test", "status": "success", "tested_sha": sha,
+                 "selected_tests": 3, "passed_tests": 3, "ignored_tests": 0, "failed_tests": 0,
+                 "ignored_test_ids": [], "failed_test_ids": [],
+                 "evidence_ref": "https://ci.invalid/run-123/alpha",
+                 "artifact_digest": artifact("alpha")},
+                {"id": "beta", "check_kind": "research", "status": "success", "tested_sha": sha,
+                 "observations_count": 2,
+                 "observation_refs": ["docs://official/source-a", "repo://source-span"],
+                 "evidence_ref": "https://ci.invalid/run-123/beta",
+                 "artifact_digest": artifact("beta")},
+            ],
+            "jobs": [
+                {"id": job, "status": "success", "tested_sha": sha,
+                 "evidence_ref": f"https://ci.invalid/run-123/{job}",
+                 "artifact_digest": artifact(job)}
+                for job in ["ui", "windows"]
+            ],
+        }
+
+
+    class Tests(unittest.TestCase):
+        def test_consistent_exact_sha_is_only_eligible_for_review(self):
+            got = verify(manifest, fresh_record())
+            self.assertEqual(got["decision"], "eligible_for_review")
+            self.assertEqual((got["unit_count"], got["job_count"]), (2, 2))
+
+        def test_missing_provenance_or_run_url_denies(self):
+            for field in ("producer_provenance", "run_url"):
+                record = fresh_record(); record[field] = ""
+                with self.assertRaises(EvidenceError):
+                    verify(manifest, record)
+
+        def test_self_reported_success_is_not_authenticated(self):
+            record = fresh_record()
+            result = verify(manifest, record)
+            self.assertEqual(result["decision"], "eligible_for_review")
+            self.assertIn("untrusted consistency check only", result["limitation"])
+            # Review, not this function, must establish the claimed provenance.
+
+        def test_stale_round_sha_denies(self):
+            record = fresh_record()
+            record["integrated_sha"] = "b" * 40
+            for rows in (record["units"], record["jobs"]):
+                for row in rows:
+                    row["tested_sha"] = "b" * 40
+            with self.assertRaisesRegex(EvidenceError, "does not match"):
+                verify(manifest, record)
+
+        def test_missing_unit_or_job_denies(self):
+            for field, target in (("units", "unit"), ("jobs", "job")):
+                record = fresh_record()
+                record[field].pop()
+                with self.assertRaisesRegex(EvidenceError, f"missing required {target}"):
+                    verify(manifest, record)
+
+        def test_skipped_cancelled_and_failed_rows_deny(self):
+            for state in ("skipped", "cancelled", "failure", "timed_out"):
+                record = fresh_record()
+                record["jobs"][0]["status"] = state
+                with self.assertRaisesRegex(EvidenceError, "did not succeed"):
+                    verify(manifest, record)
+
+        def test_zero_missing_or_partial_tests_deny(self):
+            mutations = (("selected_tests", 0), ("selected_tests", None), ("passed_tests", 2))
+            for field, value in mutations:
+                record = fresh_record(); record["units"][0][field] = value
+                with self.assertRaises(EvidenceError): verify(manifest, record)
+
+        def test_failed_tests_never_waive_and_check_kind_cannot_downgrade(self):
+            record=fresh_record(); record["units"][0]["failed_tests"]=1; record["units"][0]["failed_test_ids"]=["test_x"]
+            with self.assertRaisesRegex(EvidenceError, "failed tests always block"):
+                verify(manifest, record)
+            record=fresh_record(); record["units"][0]["check_kind"]="research"
+            record["units"][0].update(observations_count=1, observation_refs=["repo://fake"])
+            with self.assertRaisesRegex(EvidenceError, "check_kind differs"):
+                verify(manifest, record)
+            record=fresh_record(); record["units"][1]["check_kind"]="test"
+            record["units"][1].update(selected_tests=1, passed_tests=1, ignored_tests=0, failed_tests=0)
+            with self.assertRaisesRegex(EvidenceError, "check_kind differs"):
+                verify(manifest, record)
+
+        def test_ignored_tests_require_manifest_allowance_and_separate_coverage(self):
+            record=fresh_record(); record["units"][0]["ignored_tests"]=1; record["units"][0]["ignored_test_ids"]=["test_non_required"]
+            with self.assertRaisesRegex(EvidenceError, "unapproved"):
+                verify(manifest, record)
+            no_coverage={**manifest, "required_units":[{**manifest["required_units"][0],
+                "allowed_ignored_test_ids":["test_non_required"]}, manifest["required_units"][1]]}
+            with self.assertRaisesRegex(EvidenceError, "separate coverage"):
+                verify(no_coverage, record)
+            allowed={**manifest, "required_units":[{**manifest["required_units"][0],
+                "allowed_ignored_test_ids":["test_non_required"],
+                "ignored_coverage_refs":["unit_suite.coverage:cases-1-2"]}, manifest["required_units"][1]]}
+            self.assertEqual(verify(allowed, record)["decision"], "eligible_for_review")
+            no_failed_waiver={**manifest, "required_units":[{**manifest["required_units"][0], "allowed_failed_test_ids":["test_x"]}, manifest["required_units"][1]]}
+            with self.assertRaisesRegex(EvidenceError, "never be waived"):
+                verify(no_failed_waiver, fresh_record())
+
+        def test_research_requires_observation_and_blocked_denies(self):
+            for row in ({"status":"blocked","observations_count":0,"observation_refs":[]},
+                        {"status":"success","observations_count":0,"observation_refs":[]},
+                        {"status":"success","observations_count":2,"observation_refs":["one"]}):
+                record=fresh_record(); record["units"][1].update(row)
+                with self.assertRaises(EvidenceError): verify(manifest,record)
+
+        def test_missing_refs_bad_digests_and_duplicate_ids_deny(self):
+            for mutate, message in (
+                (lambda r: r["units"][0].update(evidence_ref=""), "reference"),
+                (lambda r: r["jobs"][0].update(artifact_digest="sha256:bad"), "digest"),
+                (lambda r: r["jobs"].append(copy.deepcopy(r["jobs"][0])), "duplicate"),
+            ):
+                record = fresh_record(); mutate(record)
+                with self.assertRaisesRegex(EvidenceError, message):
+                    verify(manifest, record)
+
+        def test_missing_expected_job_list_or_provenance_denies(self):
+            bad_manifest = {**manifest, "required_jobs": []}
+            with self.assertRaisesRegex(EvidenceError, "required"):
+                verify(bad_manifest, fresh_record())
+            record = fresh_record(); record["producer_provenance"] = ""
+            with self.assertRaisesRegex(EvidenceError, "provenance"):
+                verify(manifest, record)
+
+    suite = unittest.defaultTestLoader.loadTestsFromTestCase(Tests)
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
+    if not result.wasSuccessful():
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) == 2 and sys.argv[1] == "--self-test":
+        _self_test()
+    else:
+        raise SystemExit(main(sys.argv))
+```
+- [ ] Generate reviewed manifest from selected unit set and exact integrated commit. Do not use a branch name or HEAD after further edits. Required unit kind/IDs/jobs belong to reviewed manifest, not agent-generated success report. Job names match actual native CI contexts, not guessed names.
+- [ ] Populate record only from observed CI run/job and artifact outputs. Independent reviewer opens native run URLs, verifies tested merge/head/base revision, required jobs, real selected counts and evidence artifacts. Self-reported JSON can be forged; this checker intentionally cannot prove provenance and must never be sole promotion input.
+- [ ] Run `python3 openspec/changes/ci-promotion-gates/verify_round.py MANIFEST.json EVIDENCE.json`. Nonzero blocks review. Zero does not authorize merge, execution or delivery; current required hosted checks and independent product acceptance still gate promotion.
+- [ ] A research unit may finish a bounded research deliverable with explicit unknown findings, but no dependent implementation may promote while its required capability remains unknown/blocked. Do not use research success as provider support.
