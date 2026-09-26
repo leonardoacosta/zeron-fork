@@ -39,3 +39,25 @@ Only these canonical design/tasks files may change. No product state changes occ
 
 ## Refined handoff validation
 Extracted exact proposed stdlib checker and ran its6 self-tests successfully in scratch19:19 UTC. This validates shape checks only, not provider claims or API readiness.
+
+## Filled source-evidence example
+Verified against actual source at stated commit; concurrent unrelated working-tree edits are not runtime evidence.
+```json
+{
+  "claim_id": "local-harness-controls",
+  "subject": "zeron_harness::RunControls",
+  "claim": "Shared controls declare a CancellationToken interrupt; provider-specific actual stop is not established.",
+  "state": "verified",
+  "evidence_kind": "local_source",
+  "source_or_command": "crates/harness/src/lib.rs:49-62",
+  "version_or_commit": "b9623ae80225b924fe00d577d600f65938967bf6",
+  "observed_at_utc": "2026-09-26T19:56:18Z",
+  "result_or_excerpt": "pub interrupt: CancellationToken;",
+  "scope": "Read-only source declaration, not runtime acceptance",
+  "limitations": "No native/provider invocation or descendant-stop proof.",
+  "reviewer": "coordinator source verification"
+}
+```
+
+## Bounded discovery stop rule
+For each named subject/question inspect the official documentation entry point and one relevant official reference page, plus listed local anchors and their direct callers. Stop once an authoritative source answers that question. If two relevant official pages do not establish the claim, record unknown with exact searched sources, not a guessed interface. Missing/denied required source is blocked. Conflicting authoritative sources require escalation rather than optimistic choice. A later separately scoped research iteration may widen search; this budget is a research stopping rule, not proof of absence. Unknown product identity stays unknown without normalizing spelling. Persist rows in this design, never only disposable scratch.
