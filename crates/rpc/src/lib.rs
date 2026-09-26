@@ -241,7 +241,11 @@ pub struct ClientFrame {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ServerFrame {
     pub id: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present_value"
+    )]
     pub ok: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub err: Option<String>,
@@ -249,6 +253,13 @@ pub struct ServerFrame {
     pub item: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub done: bool,
+}
+
+fn deserialize_present_value<'de, D>(deserializer: D) -> Result<Option<serde_json::Value>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    serde_json::Value::deserialize(deserializer).map(Some)
 }
 
 /// What a service returns for one invocation.
@@ -298,6 +309,19 @@ mod tests {
     use std::sync::Mutex;
 
     struct TestService;
+
+    #[tokio::test]
+    async fn null_unary_response_completes_call() {
+        let client = memory_client(Arc::new(TestService));
+        let reply = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            client.call("Echo", serde_json::Value::Null),
+        )
+        .await
+        .expect("null reply must complete")
+        .unwrap();
+        assert_eq!(reply, serde_json::Value::Null);
+    }
 
     struct CancelAwareService {
         dropped: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
