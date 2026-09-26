@@ -138,7 +138,8 @@ impl WorkAuthorizer {
             available: true,
         }
     }
-    pub fn unavailable() -> Self {
+    #[cfg(test)]
+    fn unavailable() -> Self {
         Self {
             state: Arc::new(RwLock::new(State::default())),
             available: false,
@@ -1739,3 +1740,15 @@ The complete B source now includes PolicyCoordinator. Engine runtime must own on
 
 ## Publication consumer validation21:05UTC
 Literal canonical evaluator+store/coordinator blocks extracted into proto/engine topology pass30 engine tests plus4 wire tests and clippy all-targets with warnings denied. Includes old receipt replay against latest revoke, serialized admission/revocation, publication failure after durable mutation and fail-closed recovery. Earlier30-total count is superseded by34 total. Still no actual async EngineCore/provider enforcement claim.
+
+## Exact owner-facing library exports (required for bounded core CI)
+Keep implementation modules private. Add exactly these declarations/reexports to `crates/engine/src/lib.rs`, once each:
+```rust
+mod work_authorization;
+mod work_policy_store;
+pub use work_authorization::{Denial, Grant, Operation, Principal, Request, Resource};
+pub use work_policy_store::{PolicyCoordinator, PolicyReplacement, PolicyStoreError};
+```
+Do not publicly reexport WorkAuthorizer, AuthorizationPermit, DurablePolicyStore or their raw handles. They stay behind PolicyCoordinator. `unavailable` is a test-only evaluator constructor, not unused production API. Public Rust input types are NOT remote capabilities: do not add Serde decoding or expose them directly as authorized RPC parameters. The owning engine must construct principal/binding/resolved resources under the runtime enforcement contract. Library callers can express a request but cannot fabricate a permit or bypass the coordinator's current grant/revision checks.
+
+These exact exports with private modules, existing canonical implementations and test-only unavailable constructor passed34 tests plus all-target clippy-Dwarnings in the extracted proto/engine topology21:29UTC. No duplicate facade enums, wrappers or blanket lint suppression are required. This closes bounded core compilation/visibility, not remote identity resolution or async effect containment.
