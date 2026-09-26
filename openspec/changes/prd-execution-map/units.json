@@ -237,7 +237,8 @@
     ],
     "round": 2,
     "deps": [
-      "work-profile-catalog"
+      "work-profile-catalog",
+      "profile-authorization-core"
     ],
     "paths": [
       "crates/engine/src/rpc.rs",
@@ -248,7 +249,7 @@
       "crates/harness/src/lib.rs",
       "crates/engine/tests/local_profiles.rs"
     ],
-    "behavior": "Validate work-profile policy at every engine entry point that reads protected content or launches tools: direct sessions, assignment operations, MCP, terminal, repository and credential selection. Bind allowed repositories, account references, tools, environments and action scope explicitly. Revalidate at launch and external-effect boundaries; policy revocation blocks new effects and enters the configured stop/hold path. Never serialize secret values into authority snapshots.",
+    "behavior": "Validate work-profile policy at every engine entry point that reads protected content or launches tools: direct sessions, assignment operations, MCP, terminal, repository and credential selection. Bind allowed repositories, account references, tools, environments and action scope explicitly. Revalidate at launch and external-effect boundaries; policy revocation blocks new effects and enters the configured stop/hold path. Never serialize secret values into authority snapshots. This integration unit owns the minimum internal selected binding and frozen per-session resource binding needed to construct trusted requests in EngineCore tests, without exposing daemon/UI named-profile activation. The later work-profile-boundary owns external selection/attachment and integrated two-device acceptance; this unit must not depend on that later activation.",
     "cases": [
       "A trusted remote device supplies a foreign profile/account/repository ID: reject before any read or child process starts.",
       "A symlink or renamed checkout escapes the approved repository root: reject the resolved target.",
@@ -1206,5 +1207,41 @@
     ],
     "rollback": "Persist combined-check input set and observations immutably; rollback withdraws unsupported completion claims but preserves delivery facts.",
     "gate": "Real two-repository local consumer/provider compatibility check including stale delivered version and partial failure."
+  },
+  {
+    "slug": "profile-authorization-core",
+    "title": "Owner policy and synchronous admission core",
+    "zf": [
+      "02",
+      "15",
+      "19"
+    ],
+    "round": 2,
+    "deps": [
+      "work-profile-catalog"
+    ],
+    "paths": [
+      "crates/engine/src/rpc.rs",
+      "crates/engine/src/sessions.rs",
+      "crates/engine/src/agent_accounts.rs",
+      "crates/engine/src/repos.rs",
+      "crates/engine/src/terminals.rs",
+      "crates/harness/src/lib.rs",
+      "crates/engine/tests/local_profiles.rs"
+    ],
+    "behavior": "Define owner-derived principal/resource/operation requests, private single-use permits and current policy revision/grants. Persist policy replacement with CAS; synchronous admission is serialized with revocation. This unit exposes no daemon profile selection or full runtime isolation claim.",
+    "cases": [
+      "Missing or unavailable policy, unbound legacy and foreign binding deny without invoking effect closure.",
+      "Permit bound to another evaluator, operation or resource cannot be consumed.",
+      "Revocation before synchronous admission rejects stale permit and executes zero effects.",
+      "Concurrent synchronous admission and policy replacement have a defined serialized order; poison denies."
+    ],
+    "traps": [
+      "Private permit is not a wire authority token.",
+      "Synchronous closure is not authorization for all future async effects.",
+      "Core pass does not satisfy runtime enforcement acceptance."
+    ],
+    "rollback": "Roll back enforcement code only with execution disabled for newly bound profiles. Never turn unknown policy into allow to preserve compatibility.",
+    "gate": "Exact core tests plus durable policy/CAS tests. No actual engine/harness/terminal enforcement claim."
   }
 ]

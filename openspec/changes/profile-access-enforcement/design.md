@@ -62,3 +62,6 @@ Use work-profile revision semantics, but distinguish display metadata revision f
 
 ## Rollback
 Disable new named-profile effects if enforcement cannot be loaded. Preserve policy audit history and original credential data. Never remove checks or silently fall back to device-global access to make old tests pass. Existing direct-session UX preserved only within valid authority; compatibility is not a permission override.
+
+## Acyclic integration boundary
+Core policy/evaluator acceptance moved to profile-authorization-core. This integration unit creates the minimal internal EngineCore selected binding and per-session frozen binding, passes them explicitly through constructors and tests actual effects before any public named-profile activation. No implicit allow constructor. work-profile-boundary is downstream and owns UI/daemon selection/root activation; it consumes completed effect enforcement. Tests build internal resolved-profile fixtures under isolated roots, not an already deployed later daemon. Constructor and stored Chat/Run binding patches must be fully specified here before implementation.

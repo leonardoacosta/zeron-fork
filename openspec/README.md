@@ -11,7 +11,7 @@ No deployment, external write, credential provisioning, or spend follows from th
 ## Approved roadmap boundaries
 
 Detailed decomposition proposed on 2026-09-26: [PRD execution map](changes/prd-execution-map/design.md).
-It maps all 19 requirements into 35 bounded new change contracts plus existing assignment-record,
+It maps all 19 requirements into 36 bounded new change contracts plus existing assignment-record,
 with ten integration rounds and mandatory CI before every iteration/round promotion.
 Child contracts are discovery/refinement-ready, not blanket implementation approval.
 Start with `ci-promotion-gates`; exact implementation tasks must pass refinement and review before `apply`.
