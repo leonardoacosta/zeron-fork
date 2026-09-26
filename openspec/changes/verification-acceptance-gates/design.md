@@ -39,3 +39,6 @@ Structural inspection and provider doubles may support but cannot replace this b
 
 ## Implementation readiness
 This is a bounded behavior contract, not code-complete implementation instructions. A `feature` refinement must replace discovery tasks with exact 2–5 minute test/red/minimal-code/green/commit steps, complete code blocks and actual symbol names, then pass review. Newly created paths must be explicitly listed there. If provider/UI/product judgment remains genuinely unresolved, retain blocked status and ask that one question rather than choose silently.
+
+## Exact proposed predicate boundary
+Tasks contain compiled4-test pure verification evaluator: empty requirements, duplicate checks, wrong evidence class, stale revision/dirty digest, blocked/failed and contradictory observations hold. This does not execute any check or establish trust in incoming records. Only owner-recorded results and a reviewed immutable evidence-set binding may reach it. Actual acceptance requires workflow-selected human/autonomous decision and external authority checks in one persisted transition; delivery remains independently gated.
