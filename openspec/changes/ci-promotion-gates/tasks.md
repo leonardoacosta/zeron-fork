@@ -85,61 +85,88 @@ python3 openspec/changes/ci-promotion-gates/tests/test_promotion_gate.py
 Expected red: the summary job structure is absent. Exact stdlib test source:
 
 ```python
-import unittest
+"""Check exact summary structure and execute the workflow's actual gate command.
+Supported subset intentionally matches generated summary blocks; actionlint checks YAML.
+"""
+import json
+import os
 from pathlib import Path
+import re
+import subprocess
+import unittest
 
+CASES = {
+    'ui-tests.yml': ('ui-promotion', ['rust-quality', 'session-sync-regressions', 'ui-tests', 'macos-frame-recovery', 'ios-tests', 'linux-browser']),
+    'preview-tests.yml': ('preview-promotion', ['networking', 'coordinator']),
+    'windows.yml': ('windows-promotion', ['tests']),
+}
 
-def failed_required(results, required):
-    return [name for name in required
-            if name not in results or results[name].get("result") != "success"]
+def summary(text, name):
+    match = re.search(r'^  ' + re.escape(name) + r':\n(.*?)(?=^  [\w-]+:|\Z)', text, re.M | re.S)
+    if not match:
+        raise ValueError('missing executable summary: ' + name)
+    return match.group(1)
 
+def inspect(text, name, required):
+    block = summary(text, name)
+    if '    if: always()\n' not in block:
+        raise ValueError('summary must run after failure')
+    trigger = re.search(r'^  pull_request:\s*\n(.*?)(?=^  [\w-]+:|^permissions:|\Z)', text, re.M | re.S)
+    if not trigger or re.search(r'^    (paths|paths-ignore|branches|branches-ignore):', trigger.group(1), re.M):
+        raise ValueError('PR trigger is absent or filtered')
+    needs = re.search(r'^    needs:([^\n]*)\n((?:      - [^\n]+\n)*)', block, re.M)
+    if not needs:
+        raise ValueError('missing needs')
+    actual = re.findall(r'[\w-]+', needs.group(1)) or re.findall(r'^      - ([\w-]+)$', needs.group(2), re.M)
+    if set(actual) != set(required) or len(actual) != len(required):
+        raise ValueError('needs differs from required jobs')
+    if '        shell: bash\n' not in block:
+        raise ValueError('explicit bash required')
+    if '          RESULTS: ${{ toJSON(needs) }}\n' not in block:
+        raise ValueError('results not bound to native needs')
+    configured = re.search(r'^          REQUIRED: (.+)$', block, re.M)
+    if not configured or configured.group(1).split(',') != required:
+        raise ValueError('required list mismatch')
+    if 'continue-on-error' in block:
+        raise ValueError('fail-open step')
+    command = re.search(r'^        run: \|\n          (python3 -c .+)\n?$', block.rstrip() + '\n', re.M)
+    if not command:
+        raise ValueError('unsupported summary command shape')
+    return command.group(1)
 
 class PromotionGateTests(unittest.TestCase):
-    def test_all_required_jobs_success(self):
-        required = ["tests", "networking"]
-        self.assertEqual(failed_required({name: {"result": "success"} for name in required}, required), [])
-
-    def test_missing_job_fails(self):
-        self.assertEqual(failed_required({"tests": {"result": "success"}}, ["tests", "networking"]), ["networking"])
-
-    def test_empty_results_fails(self):
-        self.assertEqual(failed_required({}, ["tests", "networking"]), ["tests", "networking"])
-
-    def test_skipped_job_fails(self):
-        self.assertEqual(failed_required({"tests": {"result": "skipped"}}, ["tests"]), ["tests"])
-
-    def test_failed_job_fails(self):
-        self.assertEqual(failed_required({"tests": {"result": "failure"}}, ["tests"]), ["tests"])
-
-    def test_cancelled_job_fails(self):
-        self.assertEqual(failed_required({"tests": {"result": "cancelled"}}, ["tests"]), ["tests"])
-
-    def test_missing_result_fails(self):
-        self.assertEqual(failed_required({"tests": {}}, ["tests"]), ["tests"])
-
-    def test_workflow_summaries_cover_required_jobs(self):
-        cases = {
-            ".github/workflows/ui-tests.yml": ["rust-quality", "session-sync-regressions", "ui-tests", "macos-frame-recovery", "ios-tests", "linux-browser"],
-            ".github/workflows/preview-tests.yml": ["networking", "coordinator"],
-            ".github/workflows/windows.yml": ["tests"],
-        }
-        for path, required in cases.items():
-            with self.subTest(path=path):
-                text = Path(path).read_text(encoding="utf-8")
-                summary = {".github/workflows/ui-tests.yml": "ui-promotion", ".github/workflows/preview-tests.yml": "preview-promotion", ".github/workflows/windows.yml": "windows-promotion"}[path]
-                self.assertIn(summary + ":", text)
-                self.assertIn("if: always()", text)
+    def test_exact_summary_and_actual_predicate(self):
+        for filename, (name, required) in CASES.items():
+            with self.subTest(workflow=filename):
+                text = (Path('.github/workflows') / filename).read_text()
+                command = inspect(text, name, required)
+                if filename == 'ui-tests.yml':
+                    ios = summary(text, 'ios-tests')
+                    self.assertNotRegex(ios, r'^    if:', 'iOS must not be skipped')
+                good = {job: {'result': 'success'} for job in required}
+                controls = [(good, 0), ({}, 1)]
                 for job in required:
-                    self.assertIn(job, text)
-                self.assertIn('!= "success"', text)
-                self.assertNotIn("continue-on-error", text)
+                    missing = dict(good); del missing[job]
+                    controls.append((missing, 1))
+                    for state in ['failure', 'cancelled', 'skipped', 'timed_out', None]:
+                        controls.append(({**good, job: {'result': state}}, 1))
+                for results, expected in controls:
+                    env = dict(os.environ, RESULTS=json.dumps(results), REQUIRED=','.join(required))
+                    result = subprocess.run(['bash', '-c', command], env=env, capture_output=True, text=True, timeout=5)
+                    self.assertEqual(result.returncode, expected, (filename, results, result.stderr))
+                # Structural mutants must fail before a command can be accepted.
+                mutants = [text.replace('  '+name+':', '  removed-summary:', 1),
+                           text.replace('  '+name+':\n    if: always()', '  '+name+':\n    if: success()', 1),
+                           text.replace('          RESULTS: ${{ toJSON(needs) }}', '          RESULTS: "{}"', 1)]
+                for mutant in mutants:
+                    with self.assertRaises(ValueError):
+                        inspect(mutant, name, required)
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()
 ```
 
-The seven predicate tests exercise success, empty/missing, skipped, failed, cancelled, and missing-result cases. The workflow test checks expected summary fragments only and is not hosted-enforcement evidence.
+The test parses the deliberately narrow summary shape and executes the actual workflow command for every required job under success, missing, skipped, failed, cancelled and unknown outcomes. Structural mutations target the summary itself. Installed actionlint validates complete YAML separately. Neither check establishes hosted enforcement.
 
 ## Red/green and hosted verification
 
@@ -147,7 +174,7 @@ The seven predicate tests exercise success, empty/missing, skipped, failed, canc
 python3 openspec/changes/ci-promotion-gates/tests/test_promotion_gate.py
 # Before workflow edits: expected red due to absent summary jobs.
 python3 openspec/changes/ci-promotion-gates/tests/test_promotion_gate.py
-# After workflow edits: expected eight passing tests.
+# After workflow edits: expected one parameterized test passing all three workflows and their negative controls.
 git diff --check
 ```
 
@@ -170,3 +197,6 @@ Hosted acceptance is separate: an administrator requires the three `ui-promotion
 
 ## Rollback
 Revert the three workflow changes. Do not relax branch protection automatically. A missing required context should block merging until an administrator deliberately revises policy.
+
+## Exact workflow validation
+After applying the edits, run `actionlint -shellcheck= -pyflakes= .github/workflows/ui-tests.yml .github/workflows/preview-tests.yml .github/workflows/windows.yml` with an already installed actionlint. Expected exit0; absent validator is a named tooling prerequisite, not permission to claim syntax passed. Require up-to-date branch/merge checks so an old base cannot reuse earlier integrated-tree evidence.
