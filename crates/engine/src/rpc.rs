@@ -3580,10 +3580,49 @@ mod tests {
 
     #[tokio::test]
     async fn assignment_create_and_promote_empty_session_over_rpc() {
+        struct CountRuns(std::sync::atomic::AtomicUsize);
+        #[async_trait]
+        impl zeron_harness::Harness for CountRuns {
+            fn id(&self) -> zeron_proto::HarnessId {
+                zeron_proto::HarnessId::Mock
+            }
+            fn display_name(&self) -> &str {
+                "Mock"
+            }
+            fn supports_steering(&self) -> bool {
+                false
+            }
+            fn steering_mode(&self) -> zeron_proto::SteeringMode {
+                zeron_proto::SteeringMode::TurnBoundary
+            }
+            fn reasoning_levels(&self) -> &[zeron_proto::ReasoningLevel] {
+                &[]
+            }
+            async fn models(&self) -> Result<Vec<zeron_proto::Model>, zeron_harness::HarnessError> {
+                Ok(vec![])
+            }
+            async fn run(
+                &self,
+                _: zeron_proto::RunRequest,
+                _: zeron_harness::RunControls,
+            ) -> Result<
+                futures::stream::BoxStream<
+                    'static,
+                    Result<zeron_proto::AgentEvent, zeron_harness::HarnessError>,
+                >,
+                zeron_harness::HarnessError,
+            > {
+                self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Ok(Box::pin(futures::stream::empty()))
+            }
+        }
         let dir = tempfile::tempdir().unwrap();
+        let registry = std::sync::Arc::new(crate::HarnessRegistry::new());
+        let harness = std::sync::Arc::new(CountRuns(std::sync::atomic::AtomicUsize::new(0)));
+        registry.register(harness.clone());
         let core = crate::EngineCore::assemble(
             dir.path(),
-            std::sync::Arc::new(crate::HarnessRegistry::new()),
+            registry.clone(),
             zeron_proto::HarnessId::Mock,
             None,
         )
@@ -3599,6 +3638,21 @@ mod tests {
             .unwrap();
         assert_eq!(result["linkedSessions"][0], "empty");
         assert_eq!(result["revision"], 1);
+        let created = client
+            .call(
+                methods::CREATE_ASSIGNMENT,
+                serde_json::json!({"id":"created","objective":"new","mutationId":"create-ok"}),
+            )
+            .await
+            .unwrap();
+        assert_eq!(created["id"], "created");
+        assert_eq!(
+            client
+                .call(methods::GET_ASSIGNMENT, serde_json::json!({"id":"a"}))
+                .await
+                .unwrap(),
+            result
+        );
         assert!(client.call(methods::PROMOTE_ASSIGNMENT, serde_json::json!({"id":"b","objective":"objective","linkedSessions":["missing"],"mutationId":"bad"})).await.is_err());
         assert!(client.call(methods::CREATE_ASSIGNMENT, serde_json::json!({"id":"c","objective":"objective","ownerDeviceId":"wrong","mutationId":"bad"})).await.is_err());
         assert!(client.call(methods::CREATE_ASSIGNMENT, serde_json::json!({"id":"d","objective":"objective","allowedActions":["x".repeat(2048)],"mutationId":"large"})).await.is_err());
@@ -3639,6 +3693,25 @@ mod tests {
         assert_eq!(appended["linkedSessions"].as_array().unwrap().len(), 2);
         assert!(client.call(methods::UPDATE_ASSIGNMENT, serde_json::json!({"id":"a","expectedRevision":3,"mutationId":"edit-3","objective":"updated","linkedSessions":["replacement"],"allowedActions":[]})).await.is_err());
         assert!(client.call(methods::UPDATE_ASSIGNMENT, serde_json::json!({"id":"a","expectedRevision":3,"mutationId":"edit-4","objective":"updated","linkedSessions":["empty","replacement"],"allowedActions":["expanded"]})).await.is_err());
+        assert_eq!(harness.0.load(std::sync::atomic::Ordering::SeqCst), 0);
+        assert!(
+            core.doc_host
+                .open_local("empty")
+                .unwrap()
+                .doc()
+                .read_entries()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            core.doc_host
+                .open_local("replacement")
+                .unwrap()
+                .doc()
+                .read_entries()
+                .unwrap()
+                .is_empty()
+        );
         core.doc_host.shutdown_workers().await;
     }
 

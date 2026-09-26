@@ -1135,4 +1135,97 @@ mod publication_failure_tests {
             );
         }
     }
+
+    #[test]
+    fn failed_assignment_mutation_write_rolls_back_create_and_update_atomically() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = DocsStore::open(dir.path()).unwrap();
+        store.conn().execute_batch("CREATE TRIGGER fail_assignment_mutations BEFORE INSERT ON assignment_mutations BEGIN SELECT RAISE(FAIL, 'injected mutation failure'); END;").unwrap();
+        let payload =
+            r#"{"id":"a","ownerDeviceId":"host","profileId":"p","revision":1,"objective":"first"}"#;
+        assert!(
+            store
+                .create_assignment("a", "host", "p", payload, "mutation-1")
+                .is_err()
+        );
+        assert_eq!(store.load_assignment("a", "host", "p").unwrap(), None);
+        assert!(
+            store
+                .assignment_history("a", "host", "p")
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            store.create_assignment("a", "host", "p", payload, "mutation-1"),
+            Err(AssignmentWriteError::Conflict)
+        );
+
+        drop(store);
+        let reopened = DocsStore::open(dir.path()).unwrap();
+        assert_eq!(reopened.load_assignment("a", "host", "p").unwrap(), None);
+        assert!(
+            reopened
+                .assignment_history("a", "host", "p")
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            reopened
+                .assignment_mutation_result("a", "host", "p", "mutation-1", payload)
+                .unwrap(),
+            None
+        );
+        reopened
+            .conn()
+            .execute_batch("DROP TRIGGER fail_assignment_mutations;")
+            .unwrap();
+        reopened
+            .create_assignment("a", "host", "p", payload, "mutation-1")
+            .unwrap();
+        assert!(
+            reopened
+                .assignment_mutation_result("a", "host", "p", "mutation-1", payload)
+                .unwrap()
+                .is_some()
+        );
+
+        reopened.conn().execute_batch("CREATE TRIGGER fail_assignment_mutations BEFORE INSERT ON assignment_mutations BEGIN SELECT RAISE(FAIL, 'injected mutation failure'); END;").unwrap();
+        let update = r#"{"id":"a","ownerDeviceId":"host","profileId":"p","revision":1,"objective":"second"}"#;
+        let record: serde_json::Value = serde_json::from_str(update).unwrap();
+        assert_eq!(
+            reopened.save_assignment(&record, 1, "edit-1", update, "host", "p"),
+            Err(AssignmentWriteError::Conflict)
+        );
+        assert_eq!(
+            reopened.load_assignment("a", "host", "p").unwrap().unwrap(),
+            payload
+        );
+        assert_eq!(
+            reopened.assignment_history("a", "host", "p").unwrap(),
+            vec![payload.to_string()]
+        );
+        assert_eq!(
+            reopened
+                .assignment_mutation_result("a", "host", "p", "edit-1", update)
+                .unwrap(),
+            None
+        );
+        drop(reopened);
+
+        let reopened = DocsStore::open(dir.path()).unwrap();
+        assert_eq!(
+            reopened.load_assignment("a", "host", "p").unwrap().unwrap(),
+            payload
+        );
+        assert_eq!(
+            reopened.assignment_history("a", "host", "p").unwrap(),
+            vec![payload.to_string()]
+        );
+        assert_eq!(
+            reopened
+                .assignment_mutation_result("a", "host", "p", "edit-1", update)
+                .unwrap(),
+            None
+        );
+    }
 }
