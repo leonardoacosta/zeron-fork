@@ -177,10 +177,10 @@ impl WorkAuthorizer {
         if resource.binding().is_some_and(|rb| rb != binding) {
             return Err(Denial::ProfileMismatch);
         }
-        if let Resource::AgentAccount { principal, .. } = resource {
-            if principal != &request.principal {
-                return Err(Denial::ProfileMismatch);
-            }
+        if let Resource::AgentAccount { principal, .. } = resource
+            && principal != &request.principal
+        {
+            return Err(Denial::ProfileMismatch);
         }
         let state = self.state.read().map_err(|_| Denial::PolicyUnavailable)?;
         let key = (request.principal.clone(), binding.profile_id.clone());
@@ -501,8 +501,915 @@ mod tests {
 - [ ] This is an in-memory proposed evaluator only. Before full runtime use, define durable policy/CAS, validated principal/resource constructors, actual canonical path resolution, credential containment, safe RPC error mapping and every integration site in design.md. Public fields are internal construction conveniences, never deserialize Request/Grant from an untrusted RPC as authority. No named-profile execution capability before those gates pass.
 
 
-## Durable policy slice still required
-Exact policy schema/CAS/load/restart source and tests must be authored before whole-unit promotion. This is a concrete open planning item, not permission for an executor to invent a grant store.
+## B. Durable policy snapshot and revocation integration
+**Create:** `crates/engine/src/work_policy_store.rs`. **Modify:** `crates/engine/src/lib.rs` adds module declaration. Reuse existing engine rusqlite/sha2/serde/thiserror dependencies and slice A `work_authorization` types. No raw credential values or provider network calls.
+
+- [ ] Add the complete test module below first, then the preceding implementation. The policy snapshot must return grants AND policy revision from the same SQLite row read; a separate revision query is forbidden because it can pair old grants with new authority.
+```rust
+use crate::work_authorization::{Grant, Operation, Principal, Resource};
+use zeron_proto::{WorkProfileBinding, WorkProfileRevision};
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::path::{Component, Path};
+use std::sync::{Mutex, MutexGuard, PoisonError};
+use thiserror::Error;
+
+const VERSION: i64 = 1;
+#[derive(Debug, Error)]
+pub enum PolicyStoreError {
+    #[error(transparent)]
+    Sqlite(#[from] rusqlite::Error),
+    #[error("poisoned policy store mutex")]
+    Poisoned,
+    #[error("policy revision conflict: expected {expected}, actual {actual:?}")]
+    Cas { expected: u64, actual: Option<u64> },
+    #[error("operation replay payload conflict")]
+    ReplayConflict,
+    #[error("unknown future policy schema version {0}")]
+    FutureSchema(i64),
+    #[error("invalid persisted policy: {0}")]
+    Corrupt(String),
+    #[error("revision out of range")]
+    Revision,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PolicySnapshot {
+    pub binding: WorkProfileBinding,
+    pub policy_revision: WorkProfileRevision,
+    pub grants: Vec<Grant>,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PolicyReplacement {
+    pub principal: Principal,
+    pub actor_id: String,
+    pub operation_id: String,
+    pub expected_revision: Option<WorkProfileRevision>,
+    pub new_revision: WorkProfileRevision,
+    pub binding: WorkProfileBinding,
+    pub grants: Vec<Grant>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+enum OperationRow {
+    ReadSession,
+    MutateSession,
+    RunSession,
+    SteerSession,
+    ReadRepository,
+    MutateRepository,
+    OpenTerminal,
+    WriteTerminal,
+    ObserveTerminal,
+    CloseTerminal,
+    ReadUpload,
+    SelectAgentAccount,
+    ManageAgentLogin,
+}
+impl From<&Operation> for OperationRow {
+    fn from(x: &Operation) -> Self {
+        match x {
+            Operation::ReadSession => Self::ReadSession,
+            Operation::MutateSession => Self::MutateSession,
+            Operation::RunSession => Self::RunSession,
+            Operation::SteerSession => Self::SteerSession,
+            Operation::ReadRepository => Self::ReadRepository,
+            Operation::MutateRepository => Self::MutateRepository,
+            Operation::OpenTerminal => Self::OpenTerminal,
+            Operation::WriteTerminal => Self::WriteTerminal,
+            Operation::ObserveTerminal => Self::ObserveTerminal,
+            Operation::CloseTerminal => Self::CloseTerminal,
+            Operation::ReadUpload => Self::ReadUpload,
+            Operation::SelectAgentAccount => Self::SelectAgentAccount,
+            Operation::ManageAgentLogin => Self::ManageAgentLogin,
+        }
+    }
+}
+impl TryFrom<OperationRow> for Operation {
+    type Error = PolicyStoreError;
+    fn try_from(x: OperationRow) -> Result<Self, Self::Error> {
+        Ok(match x {
+            OperationRow::ReadSession => Self::ReadSession,
+            OperationRow::MutateSession => Self::MutateSession,
+            OperationRow::RunSession => Self::RunSession,
+            OperationRow::SteerSession => Self::SteerSession,
+            OperationRow::ReadRepository => Self::ReadRepository,
+            OperationRow::MutateRepository => Self::MutateRepository,
+            OperationRow::OpenTerminal => Self::OpenTerminal,
+            OperationRow::WriteTerminal => Self::WriteTerminal,
+            OperationRow::ObserveTerminal => Self::ObserveTerminal,
+            OperationRow::CloseTerminal => Self::CloseTerminal,
+            OperationRow::ReadUpload => Self::ReadUpload,
+            OperationRow::SelectAgentAccount => Self::SelectAgentAccount,
+            OperationRow::ManageAgentLogin => Self::ManageAgentLogin,
+        })
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+enum ResourceRow {
+    Session {
+        id: String,
+        binding: WorkProfileBinding,
+    },
+    Repository {
+        canonical_root: String,
+        repository_id: String,
+    },
+    Terminal {
+        id: String,
+        creator: WorkProfileBinding,
+        generation: u64,
+    },
+    Upload {
+        id: String,
+        binding: WorkProfileBinding,
+        canonical_root: String,
+    },
+    AgentAccount {
+        harness: String,
+        slot_ref: String,
+        principal_org: String,
+        principal_user: String,
+    },
+}
+impl From<&Resource> for ResourceRow {
+    fn from(r: &Resource) -> Self {
+        match r {
+            Resource::Session { id, binding } => Self::Session {
+                id: id.clone(),
+                binding: binding.clone(),
+            },
+            Resource::Repository {
+                canonical_root,
+                repository_id,
+            } => Self::Repository {
+                canonical_root: canonical_root.clone(),
+                repository_id: repository_id.clone(),
+            },
+            Resource::Terminal {
+                id,
+                creator,
+                generation,
+            } => Self::Terminal {
+                id: id.clone(),
+                creator: creator.clone(),
+                generation: *generation,
+            },
+            Resource::Upload {
+                id,
+                binding,
+                canonical_root,
+            } => Self::Upload {
+                id: id.clone(),
+                binding: binding.clone(),
+                canonical_root: canonical_root.clone(),
+            },
+            Resource::AgentAccount {
+                harness,
+                slot_ref,
+                principal,
+            } => Self::AgentAccount {
+                harness: harness.clone(),
+                slot_ref: slot_ref.clone(),
+                principal_org: principal.org_id.clone(),
+                principal_user: principal.user_id.clone(),
+            },
+        }
+    }
+}
+impl TryFrom<ResourceRow> for Resource {
+    type Error = PolicyStoreError;
+    fn try_from(r: ResourceRow) -> Result<Self, Self::Error> {
+        let resource = match r {
+            ResourceRow::Session { id, binding } => Self::Session { id, binding },
+            ResourceRow::Repository {
+                canonical_root,
+                repository_id,
+            } => Self::Repository {
+                canonical_root,
+                repository_id,
+            },
+            ResourceRow::Terminal {
+                id,
+                creator,
+                generation,
+            } => Self::Terminal {
+                id,
+                creator,
+                generation,
+            },
+            ResourceRow::Upload {
+                id,
+                binding,
+                canonical_root,
+            } => Self::Upload {
+                id,
+                binding,
+                canonical_root,
+            },
+            ResourceRow::AgentAccount {
+                harness,
+                slot_ref,
+                principal_org,
+                principal_user,
+            } => Self::AgentAccount {
+                harness,
+                slot_ref,
+                principal: Principal {
+                    org_id: principal_org,
+                    user_id: principal_user,
+                },
+            },
+        };
+        validate_resource(&resource)?;
+        Ok(resource)
+    }
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PersistedGrant {
+    operation: OperationRow,
+    resource: ResourceRow,
+}
+impl TryFrom<&Grant> for PersistedGrant {
+    type Error = PolicyStoreError;
+    fn try_from(g: &Grant) -> Result<Self, Self::Error> {
+        Ok(Self {
+            operation: OperationRow::from(&g.operation),
+            resource: ResourceRow::from(&g.resource),
+        })
+    }
+}
+impl TryFrom<PersistedGrant> for Grant {
+    type Error = PolicyStoreError;
+    fn try_from(g: PersistedGrant) -> Result<Self, Self::Error> {
+        Ok(Self {
+            operation: g.operation.try_into()?,
+            resource: g.resource.try_into()?,
+        })
+    }
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GrantDocument {
+    version: u32,
+    grants: Vec<PersistedGrant>,
+}
+const SCHEMA: &str = r#"
+CREATE TABLE policies(principal_org TEXT NOT NULL, principal_user TEXT NOT NULL, profile_id TEXT NOT NULL, profile_revision INTEGER NOT NULL CHECK(profile_revision BETWEEN 1 AND 9007199254740991), policy_revision INTEGER NOT NULL CHECK(policy_revision BETWEEN 1 AND 9007199254740991), grants_json TEXT NOT NULL, PRIMARY KEY(principal_org,principal_user,profile_id)) STRICT;
+CREATE TABLE policy_mutations(principal_org TEXT NOT NULL,principal_user TEXT NOT NULL,actor_id TEXT NOT NULL,operation_id TEXT NOT NULL,request_hash BLOB NOT NULL CHECK(length(request_hash)=32),result_revision INTEGER NOT NULL CHECK(result_revision BETWEEN 1 AND 9007199254740991),PRIMARY KEY(principal_org,principal_user,actor_id,operation_id)) STRICT;
+"#;
+pub struct DurablePolicyStore {
+    conn: Mutex<Connection>,
+}
+impl DurablePolicyStore {
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, PolicyStoreError> {
+        let mut c = Connection::open(path)?;
+        let v: i64 = c.pragma_query_value(None, "user_version", |r| r.get(0))?;
+        if v > VERSION {
+            return Err(PolicyStoreError::FutureSchema(v));
+        }
+        if v == 0 {
+            let tx = c.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            let locked: i64 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
+            if locked > VERSION {
+                return Err(PolicyStoreError::FutureSchema(locked));
+            }
+            if locked == 0 {
+                tx.execute_batch(SCHEMA)?;
+                tx.pragma_update(None, "user_version", VERSION)?
+            }
+            tx.commit()?
+        }
+        c.pragma_update(None, "journal_mode", "WAL")?;
+        c.pragma_update(None, "synchronous", "NORMAL")?;
+        c.busy_timeout(std::time::Duration::from_secs(5))?;
+        Ok(Self {
+            conn: Mutex::new(c),
+        })
+    }
+    fn conn(&self) -> Result<MutexGuard<'_, Connection>, PolicyStoreError> {
+        self.conn
+            .lock()
+            .map_err(|_: PoisonError<_>| PolicyStoreError::Poisoned)
+    }
+    pub fn load(
+        &self,
+        p: &Principal,
+        b: &WorkProfileBinding,
+    ) -> Result<Option<PolicySnapshot>, PolicyStoreError> {
+        validate_principal(p)?;
+        let c = self.conn()?;
+        let row: Option<(i64, i64, String)> = c.query_row(
+            "SELECT profile_revision,policy_revision,grants_json FROM policies WHERE principal_org=?1 AND principal_user=?2 AND profile_id=?3",
+            params![p.org_id, p.user_id, b.profile_id.as_str()],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        ).optional()?;
+        row.map(|(profile_revision, policy_revision, json)| {
+            if profile_revision as u64 != b.revision.get() {
+                return Err(PolicyStoreError::Corrupt(
+                    "profile binding revision mismatch".into(),
+                ));
+            }
+            let policy_revision = WorkProfileRevision::try_from(policy_revision as u64)
+                .map_err(|_| PolicyStoreError::Corrupt("policy revision".into()))?;
+            let doc: GrantDocument = serde_json::from_str(&json)
+                .map_err(|e| PolicyStoreError::Corrupt(e.to_string()))?;
+            if doc.version != 1 {
+                return Err(PolicyStoreError::Corrupt("grant document version".into()));
+            }
+            let grants = doc
+                .grants
+                .into_iter()
+                .map(Grant::try_from)
+                .collect::<Result<Vec<_>, _>>()?;
+            validate_grants(p, b, &grants)?;
+            Ok(PolicySnapshot {
+                binding: b.clone(),
+                policy_revision,
+                grants,
+            })
+        })
+        .transpose()
+    }
+    pub fn replace(&self, x: &PolicyReplacement) -> Result<WorkProfileRevision, PolicyStoreError> {
+        validate_principal(&x.principal)?;
+        if !valid_token(&x.actor_id, 256) || !valid_token(&x.operation_id, 128) {
+            return Err(PolicyStoreError::Corrupt(
+                "invalid mutation identity".into(),
+            ));
+        }
+        if x.new_revision.get() > zeron_proto::MAX_WORK_PROFILE_REVISION {
+            return Err(PolicyStoreError::Revision);
+        }
+        validate_grants(&x.principal, &x.binding, &x.grants)?;
+        let doc = GrantDocument {
+            version: 1,
+            grants: x
+                .grants
+                .iter()
+                .map(PersistedGrant::try_from)
+                .collect::<Result<_, _>>()?,
+        };
+        let json =
+            serde_json::to_string(&doc).map_err(|e| PolicyStoreError::Corrupt(e.to_string()))?;
+        let mut c = self.conn()?;
+        let tx = c.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let request = serde_json::to_vec(&(
+            x.binding.clone(),
+            x.expected_revision,
+            x.new_revision,
+            json.clone(),
+        ))
+        .map_err(|e| PolicyStoreError::Corrupt(e.to_string()))?;
+        let digest: [u8; 32] = Sha256::digest(&request).into();
+        let prior:Option<(Vec<u8>,i64)>=tx.query_row("SELECT request_hash,result_revision FROM policy_mutations WHERE principal_org=?1 AND principal_user=?2 AND actor_id=?3 AND operation_id=?4",params![x.principal.org_id,x.principal.user_id,x.actor_id,x.operation_id],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+        if let Some((saved, revision)) = prior {
+            if saved.as_slice() != digest {
+                return Err(PolicyStoreError::ReplayConflict);
+            }
+            return WorkProfileRevision::try_from(revision as u64)
+                .map_err(|_| PolicyStoreError::Corrupt("receipt revision".into()));
+        }
+        let current:Option<(i64,i64)>=tx.query_row("SELECT profile_revision,policy_revision FROM policies WHERE principal_org=?1 AND principal_user=?2 AND profile_id=?3",params![x.principal.org_id,x.principal.user_id,x.binding.profile_id.as_str()],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+        match (current, x.expected_revision) {
+            (None, None) => {}
+            (Some((profile_rev, policy_rev)), Some(expected))
+                if profile_rev as u64 == x.binding.revision.get()
+                    && policy_rev as u64 == expected.get() => {}
+            (row, expected) => {
+                return Err(PolicyStoreError::Cas {
+                    expected: expected.map(WorkProfileRevision::get).unwrap_or(0),
+                    actual: row.map(|(_, v)| v as u64),
+                });
+            }
+        }
+        if let Some(expected) = x.expected_revision {
+            let next = expected
+                .checked_next()
+                .map_err(|_| PolicyStoreError::Revision)?;
+            if next != x.new_revision {
+                return Err(PolicyStoreError::Revision);
+            }
+        } else if x.new_revision.get() != 1 {
+            return Err(PolicyStoreError::Revision);
+        }
+        match x.expected_revision {
+            None => {
+                tx.execute(
+                    "INSERT INTO policies VALUES (?1,?2,?3,?4,?5,?6)",
+                    params![
+                        x.principal.org_id,
+                        x.principal.user_id,
+                        x.binding.profile_id.as_str(),
+                        x.binding.revision.get() as i64,
+                        x.new_revision.get() as i64,
+                        json
+                    ],
+                )?;
+            }
+            Some(expected) => {
+                let n=tx.execute("UPDATE policies SET profile_revision=?4,policy_revision=?5,grants_json=?6 WHERE principal_org=?1 AND principal_user=?2 AND profile_id=?3 AND profile_revision=?7 AND policy_revision=?8",params![x.principal.org_id,x.principal.user_id,x.binding.profile_id.as_str(),x.binding.revision.get() as i64,x.new_revision.get() as i64,json,x.binding.revision.get() as i64,expected.get() as i64])?;
+                if n != 1 {
+                    return Err(PolicyStoreError::Cas {
+                        expected: expected.get(),
+                        actual: None,
+                    });
+                }
+            }
+        }
+        tx.execute(
+            "INSERT INTO policy_mutations VALUES (?1,?2,?3,?4,?5,?6)",
+            params![
+                x.principal.org_id,
+                x.principal.user_id,
+                x.actor_id,
+                x.operation_id,
+                digest.as_slice(),
+                x.new_revision.get() as i64
+            ],
+        )?;
+        tx.commit()?;
+        Ok(x.new_revision)
+    }
+    #[cfg(test)]
+    fn poison_for_test(&self) {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _g = self.conn.lock().unwrap();
+            std::panic::resume_unwind(Box::new("poison"))
+        }));
+    }
+}
+
+fn resource_binding(r: &Resource) -> Option<&WorkProfileBinding> {
+    match r {
+        Resource::Session { binding, .. } | Resource::Upload { binding, .. } => Some(binding),
+        Resource::Terminal { creator, .. } => Some(creator),
+        Resource::Repository { .. } | Resource::AgentAccount { .. } => None,
+    }
+}
+
+fn valid_token(value: &str, max_bytes: usize) -> bool {
+    !value.is_empty()
+        && value.len() <= max_bytes
+        && value.trim() == value
+        && !value.chars().any(char::is_control)
+}
+
+fn valid_canonical_root(value: &str) -> bool {
+    let path = Path::new(value);
+    path.is_absolute()
+        && path
+            .components()
+            .all(|component| !matches!(component, Component::ParentDir | Component::CurDir))
+        && path.to_str() == Some(value)
+}
+
+fn validate_resource(resource: &Resource) -> Result<(), PolicyStoreError> {
+    let invalid = match resource {
+        Resource::Session { id, binding } => !valid_token(id, 256) || binding.revision.get() == 0,
+        Resource::Repository {
+            canonical_root,
+            repository_id,
+        } => !valid_canonical_root(canonical_root) || !valid_token(repository_id, 256),
+        Resource::Terminal {
+            id,
+            creator,
+            generation,
+        } => !valid_token(id, 256) || creator.revision.get() == 0 || *generation == 0,
+        Resource::Upload {
+            id,
+            binding,
+            canonical_root,
+        } => {
+            !valid_token(id, 256)
+                || binding.revision.get() == 0
+                || !valid_canonical_root(canonical_root)
+        }
+        Resource::AgentAccount {
+            harness,
+            slot_ref,
+            principal,
+        } => {
+            !valid_token(harness, 64)
+                || !valid_token(slot_ref, 256)
+                || !valid_token(&principal.org_id, 256)
+                || !valid_token(&principal.user_id, 256)
+        }
+    };
+    if invalid {
+        return Err(PolicyStoreError::Corrupt("invalid resource fields".into()));
+    }
+    Ok(())
+}
+
+fn validate_grants(
+    principal: &Principal,
+    binding: &WorkProfileBinding,
+    grants: &[Grant],
+) -> Result<(), PolicyStoreError> {
+    validate_principal(principal)?;
+    if binding.revision.get() == 0 {
+        return Err(PolicyStoreError::Corrupt("invalid profile revision".into()));
+    }
+    for grant in grants {
+        validate_resource(&grant.resource)?;
+        let compatible = matches!(
+            (&grant.operation, &grant.resource),
+            (
+                Operation::ReadSession
+                    | Operation::MutateSession
+                    | Operation::RunSession
+                    | Operation::SteerSession,
+                Resource::Session { .. }
+            ) | (
+                Operation::ReadRepository | Operation::MutateRepository,
+                Resource::Repository { .. }
+            ) | (Operation::OpenTerminal, Resource::Terminal { .. })
+                | (Operation::WriteTerminal, Resource::Terminal { .. })
+                | (Operation::ObserveTerminal, Resource::Terminal { .. })
+                | (Operation::CloseTerminal, Resource::Terminal { .. })
+                | (Operation::ReadUpload, Resource::Upload { .. })
+                | (
+                    Operation::SelectAgentAccount | Operation::ManageAgentLogin,
+                    Resource::AgentAccount { .. }
+                )
+        );
+        if !compatible {
+            return Err(PolicyStoreError::Corrupt(
+                "operation is incompatible with resource kind".into(),
+            ));
+        }
+        if resource_binding(&grant.resource)
+            .is_some_and(|resource_binding| resource_binding != binding)
+        {
+            return Err(PolicyStoreError::Corrupt(
+                "grant binding differs from policy key".into(),
+            ));
+        }
+        if let Resource::AgentAccount {
+            principal: resource_principal,
+            ..
+        } = &grant.resource
+            && resource_principal != principal
+        {
+            return Err(PolicyStoreError::Corrupt(
+                "agent account principal differs from policy owner".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_principal(principal: &Principal) -> Result<(), PolicyStoreError> {
+    if !valid_token(&principal.org_id, 256) || !valid_token(&principal.user_id, 256) {
+        return Err(PolicyStoreError::Corrupt("invalid principal".into()));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+    fn p() -> Principal {
+        Principal {
+            org_id: "org".into(),
+            user_id: "user".into(),
+        }
+    }
+    fn b() -> WorkProfileBinding {
+        WorkProfileBinding {
+            profile_id: zeron_proto::WorkProfileId::try_from(
+                "e317f12a-17e1-4b0c-a56f-9502b870db9e".to_owned(),
+            )
+            .unwrap(),
+            revision: WorkProfileRevision::try_from(1).unwrap(),
+        }
+    }
+    fn grant() -> Grant {
+        Grant {
+            operation: Operation::RunSession,
+            resource: Resource::Session {
+                id: "session-1".into(),
+                binding: b(),
+            },
+        }
+    }
+    fn replacement(expected: Option<u64>, new: u64, op: &str) -> PolicyReplacement {
+        PolicyReplacement {
+            principal: p(),
+            actor_id: "device".into(),
+            operation_id: op.into(),
+            expected_revision: expected.map(|v| WorkProfileRevision::try_from(v).unwrap()),
+            new_revision: WorkProfileRevision::try_from(new).unwrap(),
+            binding: b(),
+            grants: vec![grant()],
+        }
+    }
+    #[test]
+    fn replace_cas_reopen_revokes_prior_policy() {
+        let d = tempdir().unwrap();
+        let db = d.path().join("policy.db");
+        let s = DurablePolicyStore::open(&db).unwrap();
+        assert_eq!(s.replace(&replacement(None, 1, "create")).unwrap().get(), 1);
+        assert_eq!(
+            s.load(&p(), &b()).unwrap().unwrap().policy_revision.get(),
+            1
+        );
+        drop(s);
+        let s = DurablePolicyStore::open(&db).unwrap();
+        assert_eq!(s.load(&p(), &b()).unwrap().unwrap().grants, vec![grant()]);
+        assert_eq!(
+            s.replace(&replacement(Some(1), 2, "revoke")).unwrap().get(),
+            2
+        );
+        assert_eq!(s.load(&p(), &b()).unwrap().unwrap().grants, vec![grant()]);
+        assert!(matches!(
+            s.replace(&replacement(Some(1), 2, "stale")),
+            Err(PolicyStoreError::Cas {
+                expected: 1,
+                actual: Some(2)
+            })
+        ));
+    }
+    #[test]
+    fn replay_is_scoped_and_changed_payload_conflicts() {
+        let d = tempdir().unwrap();
+        let s = DurablePolicyStore::open(d.path().join("p.db")).unwrap();
+        let x = replacement(None, 1, "op");
+        assert_eq!(s.replace(&x).unwrap().get(), 1);
+        assert_eq!(s.replace(&x).unwrap().get(), 1);
+        let mut changed = x.clone();
+        changed.grants.clear();
+        assert!(matches!(
+            s.replace(&changed),
+            Err(PolicyStoreError::ReplayConflict)
+        ));
+        let mut other = replacement(Some(1), 2, "op");
+        other.actor_id = "device-2".into();
+        assert_eq!(s.replace(&other).unwrap().get(), 2);
+    }
+    #[test]
+    fn unknown_schema_rejected_without_pragma_mutation() {
+        let d = tempdir().unwrap();
+        let db = d.path().join("future.db");
+        let c = Connection::open(&db).unwrap();
+        c.pragma_update(None, "user_version", 50).unwrap();
+        let mode: String = c
+            .pragma_query_value(None, "journal_mode", |r| r.get(0))
+            .unwrap();
+        drop(c);
+        let bytes = std::fs::read(&db).unwrap();
+        assert!(matches!(
+            DurablePolicyStore::open(&db),
+            Err(PolicyStoreError::FutureSchema(50))
+        ));
+        assert_eq!(std::fs::read(&db).unwrap(), bytes);
+        let c = Connection::open(&db).unwrap();
+        assert_eq!(
+            c.pragma_query_value::<String, _>(None, "journal_mode", |r| r.get(0))
+                .unwrap(),
+            mode
+        );
+    }
+    #[test]
+    fn sql_trigger_fault_rolls_back_policy_and_receipt_then_retries() {
+        let d = tempdir().unwrap();
+        let db = d.path().join("fault.db");
+        let s = DurablePolicyStore::open(&db).unwrap();
+        s.conn().unwrap().execute_batch("CREATE TRIGGER reject_mutation BEFORE INSERT ON policy_mutations BEGIN SELECT RAISE(ABORT,'fault'); END;").unwrap();
+        let x = replacement(None, 1, "op");
+        assert!(matches!(s.replace(&x), Err(PolicyStoreError::Sqlite(_))));
+        assert_eq!(s.load(&p(), &b()).unwrap(), None);
+        drop(s);
+        let s = DurablePolicyStore::open(&db).unwrap();
+        assert_eq!(s.load(&p(), &b()).unwrap(), None);
+        s.conn()
+            .unwrap()
+            .execute_batch("DROP TRIGGER reject_mutation;")
+            .unwrap();
+        assert_eq!(s.replace(&x).unwrap().get(), 1);
+    }
+    #[test]
+    fn poisoned_store_lock_denies() {
+        let d = tempdir().unwrap();
+        let s = DurablePolicyStore::open(d.path().join("poison.db")).unwrap();
+        s.poison_for_test();
+        assert!(matches!(
+            s.load(&p(), &b()),
+            Err(PolicyStoreError::Poisoned)
+        ));
+    }
+    #[test]
+    fn unknown_persisted_operation_rejects_entire_policy() {
+        let d = tempdir().unwrap();
+        let db = d.path().join("corrupt.db");
+        let s = DurablePolicyStore::open(&db).unwrap();
+        s.replace(&replacement(None, 1, "create")).unwrap();
+        s.conn().unwrap().execute("UPDATE policies SET grants_json=?1",[r#"{"version":1,"grants":[{"operation":{"kind":"GrantAll"},"resource":{"kind":"session","id":"session-1","binding":{"profileId":"e317f12a-17e1-4b0c-a56f-9502b870db9e","revision":1}}}]}"#]).unwrap();
+        assert!(matches!(
+            s.load(&p(), &b()),
+            Err(PolicyStoreError::Corrupt(_))
+        ));
+    }
+
+    #[test]
+    fn concurrent_two_connection_cas_has_one_winner() {
+        use std::sync::{Arc, Barrier};
+        let d = tempdir().unwrap();
+        let db = d.path().join("concurrent.db");
+        let setup = DurablePolicyStore::open(&db).unwrap();
+        setup.replace(&replacement(None, 1, "init")).unwrap();
+        drop(setup);
+        let first = Arc::new(DurablePolicyStore::open(&db).unwrap());
+        let second = Arc::new(DurablePolicyStore::open(&db).unwrap());
+        let barrier = Arc::new(Barrier::new(3));
+        let spawn =
+            |store: Arc<DurablePolicyStore>, operation_id: &'static str, barrier: Arc<Barrier>| {
+                std::thread::Builder::new()
+                    .spawn(move || {
+                        let change = replacement(Some(1), 2, operation_id);
+                        barrier.wait();
+                        store.replace(&change)
+                    })
+                    .unwrap()
+            };
+        let one = spawn(first, "op-one", barrier.clone());
+        let two = spawn(second, "op-two", barrier.clone());
+        barrier.wait();
+        let results = [one.join().unwrap(), two.join().unwrap()];
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| matches!(result, Err(PolicyStoreError::Cas { .. })))
+                .count(),
+            1
+        );
+        let reopened = DurablePolicyStore::open(&db).unwrap();
+        assert_eq!(
+            reopened
+                .load(&p(), &b())
+                .unwrap()
+                .unwrap()
+                .policy_revision
+                .get(),
+            2
+        );
+    }
+
+    #[test]
+    fn rejects_corrupt_tokens_bindings_and_paths_on_load() {
+        let d = tempdir().unwrap();
+        let db = d.path().join("bad-values.db");
+        let store = DurablePolicyStore::open(&db).unwrap();
+        store.replace(&replacement(None, 1, "create")).unwrap();
+        let bad_binding = r#"{"version":1,"grants":[{"operation":{"kind":"runSession"},"resource":{"kind":"session","id":"s1","binding":{"profileId":"e317f12a-17e1-4b0c-a56f-9502b870db9e","revision":2}}}]}"#;
+        store
+            .conn()
+            .unwrap()
+            .execute("UPDATE policies SET grants_json=?1", [bad_binding])
+            .unwrap();
+        assert!(matches!(
+            store.load(&p(), &b()),
+            Err(PolicyStoreError::Corrupt(_))
+        ));
+        let bad_path = r#"{"version":1,"grants":[{"operation":{"kind":"readRepository"},"resource":{"kind":"repository","canonicalRoot":"/repo/../secret","repositoryId":"repo-1"}}]}"#;
+        store
+            .conn()
+            .unwrap()
+            .execute("UPDATE policies SET grants_json=?1", [bad_path])
+            .unwrap();
+        assert!(matches!(
+            store.load(&p(), &b()),
+            Err(PolicyStoreError::Corrupt(_))
+        ));
+        let bad_agent = r#"{"version":1,"grants":[{"operation":{"kind":"selectAgentAccount"},"resource":{"kind":"agentAccount","harness":"codex","slotRef":"slot1","principalOrg":"other","principalUser":"user"}}]}"#;
+        store
+            .conn()
+            .unwrap()
+            .execute("UPDATE policies SET grants_json=?1", [bad_agent])
+            .unwrap();
+        assert!(matches!(
+            store.load(&p(), &b()),
+            Err(PolicyStoreError::Corrupt(_))
+        ));
+    }
+
+    #[test]
+    fn durable_load_authorize_effect_then_revoke_and_reload_denies_old_permit() {
+        use crate::work_authorization::{Denial, Request, WorkAuthorizer};
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let d = tempdir().unwrap();
+        let db = d.path().join("auth-flow.db");
+        let principal = p();
+        let binding = b();
+        let operation = Operation::RunSession;
+        let resource = grant().resource;
+        let store = DurablePolicyStore::open(&db).unwrap();
+        store.replace(&replacement(None, 1, "create")).unwrap();
+
+        let snapshot = store.load(&principal, &binding).unwrap().unwrap();
+        assert_eq!(snapshot.policy_revision.get(), 1);
+        let authorizer = WorkAuthorizer::new();
+        authorizer
+            .replace_policy(
+                principal.clone(),
+                &binding,
+                snapshot.policy_revision.get(),
+                snapshot.grants,
+            )
+            .unwrap();
+        let request = Request {
+            selection: zeron_proto::WorkProfileSelection::Named(binding.clone()),
+            principal: principal.clone(),
+            expected_policy_revision: 1,
+            operation: operation.clone(),
+            resource: Some(resource.clone()),
+            migration_required: false,
+            unresolved: false,
+        };
+        let permit = authorizer.authorize(&request).unwrap();
+        let permit_to_revoke = authorizer.authorize(&request).unwrap();
+        let ran = AtomicBool::new(false);
+        authorizer
+            .with_authorized_effect(permit, &binding, &operation, &resource, || {
+                ran.store(true, Ordering::SeqCst);
+            })
+            .unwrap();
+        assert!(ran.load(Ordering::SeqCst));
+
+        let mut revoked_change = replacement(Some(1), 2, "revoke");
+        revoked_change.grants.clear();
+        store.replace(&revoked_change).unwrap();
+        let revoked = store.load(&principal, &binding).unwrap().unwrap();
+        assert_eq!(revoked.policy_revision.get(), 2);
+        authorizer
+            .replace_policy(
+                principal.clone(),
+                &binding,
+                revoked.policy_revision.get(),
+                revoked.grants,
+            )
+            .unwrap();
+        let stale_request = Request {
+            expected_policy_revision: 1,
+            ..request
+        };
+        assert_eq!(
+            authorizer.authorize(&stale_request).err(),
+            Some(Denial::StalePolicy)
+        );
+
+        let ran_after_revoke = AtomicBool::new(false);
+        let stale_permit = authorizer.authorize(&stale_request).err().expect("stale request denied");
+        assert_eq!(stale_permit, Denial::StalePolicy);
+        assert_eq!(
+            authorizer.with_authorized_effect(
+                permit_to_revoke,
+                &binding,
+                &operation,
+                &resource,
+                || ran_after_revoke.store(true, Ordering::SeqCst),
+            ),
+            Err(Denial::StalePolicy)
+        );
+        assert!(!ran_after_revoke.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn rejects_operation_resource_kind_mismatch_on_write_and_load() {
+        let d = tempdir().unwrap();
+        let db = d.path().join("kind-mismatch.db");
+        let store = DurablePolicyStore::open(&db).unwrap();
+        let mut invalid = replacement(None, 1, "bad-kind");
+        invalid.grants[0].operation = Operation::ReadRepository;
+        assert!(matches!(
+            store.replace(&invalid),
+            Err(PolicyStoreError::Corrupt(_))
+        ));
+        store.replace(&replacement(None, 1, "valid")).unwrap();
+        let invalid_persisted = r#"{"version":1,"grants":[{"operation":{"kind":"runSession"},"resource":{"kind":"agentAccount","harness":"codex","slotRef":"slot1","principalOrg":"org","principalUser":"user"}}]}"#;
+        store
+            .conn()
+            .unwrap()
+            .execute("UPDATE policies SET grants_json=?1", [invalid_persisted])
+            .unwrap();
+        assert!(matches!(
+            store.load(&p(), &b()),
+            Err(PolicyStoreError::Corrupt(_))
+        ));
+    }
+}
+```
+- [ ] Run `cargo test --locked -p zeron-engine --lib work_policy_store::tests`, require10 tests. Run `work_authorization::tests` separately, require9. Do not count the catalog/wire21-test scratch run as19 evaluator tests: it contains4 wire+7 catalog+10 durable-policy tests, not the separate9 evaluator tests.
+- [ ] Run `cargo clippy --workspace --all-targets --all-features -- -D warnings` after actual consumer integration. Do not suppress unused private module warnings to ship an unconsumed store. The core module visibility/API must match its reviewed consumer boundary, never expose a mutation RPC that accepts caller-supplied principal as authority.
+- [ ] Wire store snapshot loading to evaluator initialization: call `load` with owner-derived principal/binding, reject None/corrupt/error, then `replace_policy(principal, binding, snapshot.policy_revision.get(), snapshot.grants)`. A policy mutation is not acknowledged until durable commit AND active evaluator update have reached a safe serialized state. If evaluator publication fails after commit, hold new effects and reload; never continue serving old grants under a successful mutation response.
+- [ ] This slice's integration test proves durable load→authorize→synchronous effect→revoke→reload→old-permit denial. It does not prove multi-process cache invalidation or async effect stopping. Only one owner process may mutate a live profile policy; the later runtime activation must enforce that instance lock and dispatch-generation protocol before exposure.
+- [ ] In scratch, remove the operation/resource-kind check and require corruption test failure; restore. Remove CAS predicate and require stale/concurrent tests fail. Preserve late-trigger rollback and future-schema no-mutation assertions. Commit scoped module/tests only after actual core CI.
 
 ## Required scenarios
 - C01: Missing or unavailable policy, unbound legacy and foreign binding deny without invoking effect closure.
@@ -515,3 +1422,6 @@ Run exact core tests and integrated round CI with commit-bound evidence.
 
 ## Rollback
 Roll back enforcement code only with execution disabled for newly bound profiles. Never turn unknown policy into allow to preserve compatibility.
+
+## Combined literal handoff validation20:47UTC
+Extracted wire/catalog/evaluator/durable-store blocks into matching proto+engine crate/module topology. Initial integration caught wrong crate-root type path, Debug-dependent unwrap_err and collapsible-if lint; corrected canonical blocks. Final30 tests (4 wire,7 catalog,9 evaluator,10 durable policy) and workspace/all-target clippy-Dwarnings pass in scratch. This is cross-contract source compatibility evidence, not real EngineCore routing/provider enforcement. No host services or runtime code changed.
