@@ -954,67 +954,77 @@ fn harden_variant(
         report,
         "text",
         output.colors.text,
-        &[
-            "foreground",
-            "sideBar.foreground",
-            "editorWidget.foreground",
-            "quickInput.foreground",
-            "input.foreground",
-            "menu.foreground",
-            "editor.foreground",
-        ],
-        &text_backgrounds,
-        4.5,
-        None,
+        ForegroundRules {
+            candidate_keys: &[
+                "foreground",
+                "sideBar.foreground",
+                "editorWidget.foreground",
+                "quickInput.foreground",
+                "input.foreground",
+                "menu.foreground",
+                "editor.foreground",
+            ],
+            backgrounds: &text_backgrounds,
+            minimum: 4.5,
+            preferred_target: None,
+        },
     );
     output.colors.text_muted = harden_foreground(
         source,
         report,
         "textMuted",
         output.colors.text_muted,
-        &[
-            "descriptionForeground",
-            "tab.inactiveForeground",
-            "sideBarSectionHeader.foreground",
-        ],
-        &text_backgrounds,
-        4.5,
-        Some(output.colors.text),
+        ForegroundRules {
+            candidate_keys: &[
+                "descriptionForeground",
+                "tab.inactiveForeground",
+                "sideBarSectionHeader.foreground",
+            ],
+            backgrounds: &text_backgrounds,
+            minimum: 4.5,
+            preferred_target: Some(output.colors.text),
+        },
     );
     output.colors.text_faint = harden_foreground(
         source,
         report,
         "textFaint",
         output.colors.text_faint,
-        &[
-            "disabledForeground",
-            "input.placeholderForeground",
-            "descriptionForeground",
-            "foreground",
-        ],
-        &text_backgrounds,
-        3.0,
-        Some(output.colors.text_muted),
+        ForegroundRules {
+            candidate_keys: &[
+                "disabledForeground",
+                "input.placeholderForeground",
+                "descriptionForeground",
+                "foreground",
+            ],
+            backgrounds: &text_backgrounds,
+            minimum: 3.0,
+            preferred_target: Some(output.colors.text_muted),
+        },
     );
     output.colors.on_solid = harden_foreground(
         source,
         report,
         "onSolid",
         output.colors.on_solid,
-        &["button.foreground", "foreground", "editor.foreground"],
-        &[output.colors.solid],
-        4.5,
-        Some(output.colors.text),
+        ForegroundRules {
+            candidate_keys: &["button.foreground", "foreground", "editor.foreground"],
+            backgrounds: &[output.colors.solid],
+            minimum: 4.5,
+            preferred_target: Some(output.colors.text),
+        },
     );
     output.terminal.foreground = harden_foreground(
         source,
         report,
         "terminal.foreground",
         output.terminal.foreground,
-        &["terminal.foreground", "editor.foreground", "foreground"],
-        &[output.terminal.background],
-        4.5,
-        Some(output.colors.text),
+        ForegroundRules {
+            candidate_keys: &["terminal.foreground", "editor.foreground", "foreground"],
+            backgrounds: &[output.terminal.background],
+            minimum: 4.5,
+            preferred_target: Some(output.colors.text),
+        },
     );
 
     for (role, color) in [
@@ -1063,11 +1073,14 @@ fn harden_foreground(
     report: &mut ImportReport,
     role: &str,
     current: Color,
-    candidate_keys: &[&str],
-    backgrounds: &[Color],
-    minimum: f32,
-    preferred_target: Option<Color>,
+    rules: ForegroundRules<'_>,
 ) -> Color {
+    let ForegroundRules {
+        candidate_keys,
+        backgrounds,
+        minimum,
+        preferred_target,
+    } = rules;
     let current_contrast = minimum_contrast(current, backgrounds);
     if current_contrast >= minimum {
         return current;
@@ -1112,6 +1125,13 @@ fn harden_foreground(
         ),
     );
     resolved
+}
+
+struct ForegroundRules<'a> {
+    candidate_keys: &'a [&'a str],
+    backgrounds: &'a [Color],
+    minimum: f32,
+    preferred_target: Option<Color>,
 }
 
 fn ensure_contrast_across(

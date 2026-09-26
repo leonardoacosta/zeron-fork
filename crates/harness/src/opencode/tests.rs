@@ -166,9 +166,12 @@ impl TurnWire {
                         return;
                     }
                     let health = json!({"version": version}).to_string();
-                    if native_command_reply.is_some() && is_post && path == "/session/fixture/command" {
+                    if let Some(native_command_reply) = native_command_reply
+                        && is_post
+                        && path == "/session/fixture/command"
+                    {
                         let _ = request_tx.send(path.clone());
-                        match native_command_reply.expect("native command fixture configured") {
+                        match native_command_reply {
                             NativeCommandReply::Disconnect => return,
                             NativeCommandReply::DelayedHttp404 => {
                                 if let Some(wait) = command_failure_wait.lock().await.take() {

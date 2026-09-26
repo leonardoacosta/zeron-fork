@@ -36,6 +36,9 @@ pub type WsStream = crate::socket::Connection<MaybeTlsStream<crate::socket::Prog
 /// WebSocket handshake on the winning stream. A success also broadcasts
 /// [`crate::wake::notify_online`] so sibling sockets waiting out a reconnect
 /// backoff redial immediately instead of sleeping through the recovery.
+// Preserve the Tungstenite error type exposed by this helper; boxing would
+// change its public return contract and force every caller to unwrap it.
+#[allow(clippy::result_large_err)]
 pub async fn connect_ws(url: &str) -> Result<WsStream, WsError> {
     // Bound DNS, all TCP attempts, TLS and HTTP upgrade together. Some
     // callers (notably the host relay) have no outer connection deadline.
@@ -49,6 +52,7 @@ pub async fn connect_ws(url: &str) -> Result<WsStream, WsError> {
         })?
 }
 
+#[allow(clippy::result_large_err)]
 async fn connect_ws_inner(url: &str) -> Result<WsStream, WsError> {
     let request = url.into_client_request()?;
     let uri = request.uri();

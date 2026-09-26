@@ -194,7 +194,8 @@ async fn real_all_harnesses_quiet_survey() {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(3);
-    let agents: Vec<(&str, fn() -> AcpHarness)> = vec![
+    type AgentCtor = (&'static str, fn() -> AcpHarness);
+    let agents: Vec<AgentCtor> = vec![
         ("devin", AcpHarness::devin),
         ("grok", AcpHarness::grok),
         ("hermes", AcpHarness::hermes),

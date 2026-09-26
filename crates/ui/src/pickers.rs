@@ -899,10 +899,9 @@ impl Pickers {
     fn effective_model_id<'a>(&'a self, cx: &'a App) -> Option<&'a str> {
         if let Some(title) = &self.title {
             // Only the saved agent's tab shows a selected row.
-            return title
-                .model
-                .as_deref()
-                .filter(|_| title.harness.is_some() && title.harness == self.effective_harness(cx));
+            return title.model.as_deref().filter(|_| {
+                title.harness.is_some() && title.harness == self.effective_harness(cx)
+            });
         }
         if let Some(id) = self.config.model.as_deref() {
             return Some(id);
@@ -4999,18 +4998,19 @@ impl Render for Pickers {
                 traits_active.then(|| theme.text.opacity(0.85)),
             )
         });
-        let fast = self.title.is_none() && self.selected_model(cx).is_some_and(|model| {
-            model.options.iter().any(|option| {
-                option.id == "serviceTier"
-                    && self
-                        .resolved(cx)
-                        .model_options
-                        .get(&option.id)
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(&option.default_choice)
-                        == "fast"
-            })
-        });
+        let fast = self.title.is_none()
+            && self.selected_model(cx).is_some_and(|model| {
+                model.options.iter().any(|option| {
+                    option.id == "serviceTier"
+                        && self
+                            .resolved(cx)
+                            .model_options
+                            .get(&option.id)
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(&option.default_choice)
+                            == "fast"
+                })
+            });
         let model_chip = self
             .trigger_chip(
                 PickerKind::HarnessModel,

@@ -51,14 +51,12 @@ pub fn summarize_tool_output(text: &str) -> Option<String> {
         .find(|l| !l.trim().is_empty())
         .unwrap_or(stripped)
         .trim_end();
-    let mut chars = 0usize;
     let mut end = line.len();
-    for (i, _) in line.char_indices() {
+    for (chars, (i, _)) in line.char_indices().enumerate() {
         if chars == TOOL_OUTPUT_SUMMARY_MAX {
             end = i;
             break;
         }
-        chars += 1;
     }
     let mut out = line[..end].to_owned();
     out.push('…');
@@ -120,6 +118,9 @@ pub enum SubagentStatus {
 }
 
 /// One rendered part of an assistant message.
+// Keep the public serialized enum's concrete payload types stable; boxing
+// `ToolCall` would change the Rust API and add indirection on every access.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum MessagePart {
@@ -595,10 +596,10 @@ fn spawn_badge(call: &ToolCall) -> Option<serde_json::Value> {
         .iter()
         .filter_map(|key| {
             let value = input.get(key)?.as_str()?.trim();
-            (!value.is_empty()).then(|| ((*key).to_owned(), serde_json::Value::from(value)))
+            (!value.is_empty()).then_some(((*key).to_owned(), serde_json::Value::from(value)))
         })
         .collect();
-    (!kept.is_empty()).then(|| serde_json::Value::Object(kept))
+    (!kept.is_empty()).then_some(serde_json::Value::Object(kept))
 }
 
 /// Deterministic continuation id: `"{root}#c{n}"`.

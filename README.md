@@ -55,6 +55,17 @@ On macOS: use the desktop release, or build `zeron` from source and run `zeron d
 
 On Windows: extract the portable release ZIP and run `zeron.exe`. Keep `zeron-update.json` beside it for in-app updates. See the [development notes](docs/reference/windows-development.md) for source builds.
 
+## Rust development checks
+
+The repository pins the stable Rust toolchain in `rust-toolchain.toml`, including `rustfmt` and Clippy. From the repository root, run the same formatting and lint checks as CI:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+```
+
+Run focused tests for the crate you changed, for example `cargo test --locked -p zeron-engine`. These commands run locally; GitHub Actions runs them in the [`rust-quality` job](.github/workflows/ui-tests.yml). The workflow also runs broader platform and integration tests. A local pass does not mean those GitHub-hosted jobs have run.
+
 ## Sponsors
 
 Thank you to [The Context Company](https://www.thecontextcompany.com/) for sponsoring Zeron.

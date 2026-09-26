@@ -56,6 +56,9 @@ fn main() {
             .stdin(zeron_harness::process::Stdio::null())
             .stdout(zeron_harness::process::Stdio::null())
             .stderr(zeron_harness::process::Stdio::null());
+        // The owner is deliberately left running to model a long-lived
+        // descendant; the Windows job-object test must terminate it abruptly.
+        #[allow(clippy::zombie_processes)]
         let _owned = command.spawn().unwrap();
         let pids = await_tree(&path);
         println!("{}", serde_json::to_string(&pids).unwrap());
@@ -70,6 +73,9 @@ fn main() {
         return;
     }
     if args.get(1).is_some_and(|arg| arg == "--tree-child") {
+        // The child/grandchild processes intentionally outlive this process
+        // until the parent test exercises process-tree termination.
+        #[allow(clippy::zombie_processes)]
         let grandchild = tree_command().arg("--tree-leaf").spawn().unwrap();
         std::fs::write(
             &args[2],
@@ -165,6 +171,9 @@ fn spawn_tree() -> Vec<u32> {
     let path = std::env::current_dir()
         .unwrap()
         .join("descendant-pids.json");
+    // These are deliberate background descendants: their survival is what
+    // the process-tree teardown tests exercise.
+    #[allow(clippy::zombie_processes)]
     let _child = tree_command()
         .arg("--tree-child")
         .arg(&path)
@@ -176,10 +185,10 @@ fn spawn_tree() -> Vec<u32> {
 fn await_tree(path: &std::path::Path) -> Vec<u32> {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     loop {
-        if let Ok(bytes) = std::fs::read(&path) {
-            if let Ok(pids) = serde_json::from_slice(&bytes) {
-                return pids;
-            }
+        if let Ok(bytes) = std::fs::read(path)
+            && let Ok(pids) = serde_json::from_slice(&bytes)
+        {
+            return pids;
         }
         assert!(
             std::time::Instant::now() < deadline,

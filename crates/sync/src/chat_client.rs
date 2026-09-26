@@ -519,6 +519,26 @@ impl ChatClient {
         .await
     }
 
+    pub(crate) async fn connect_with_tuned(
+        connector: Arc<dyn BinConnector>,
+        sink: Arc<dyn ChatDocSink>,
+        fetcher: Arc<dyn CheckpointFetcher>,
+        device_id: &str,
+        initial_cursor: u64,
+        tuning: ChatTuning,
+    ) -> Result<Self, SyncError> {
+        Self::connect_with_transport(
+            connector,
+            sink,
+            fetcher,
+            device_id,
+            initial_cursor,
+            tuning,
+            None,
+        )
+        .await
+    }
+
     /// Connect with a plain-HTTPS pull/push seam alongside the socket: the
     /// construction resolves immediately (local-first — the doc is usable
     /// now and converging it is the actor's ongoing job), an HTTP pull
@@ -542,26 +562,6 @@ impl ChatClient {
             initial_cursor,
             ChatTuning::default(),
             Some(transport),
-        )
-        .await
-    }
-
-    pub(crate) async fn connect_with_tuned(
-        connector: Arc<dyn BinConnector>,
-        sink: Arc<dyn ChatDocSink>,
-        fetcher: Arc<dyn CheckpointFetcher>,
-        device_id: &str,
-        initial_cursor: u64,
-        tuning: ChatTuning,
-    ) -> Result<Self, SyncError> {
-        Self::connect_with_transport(
-            connector,
-            sink,
-            fetcher,
-            device_id,
-            initial_cursor,
-            tuning,
-            None,
         )
         .await
     }
@@ -1238,9 +1238,7 @@ impl Actor {
                 let backfill = tokio::time::timeout(BACKFILL_DEADLINE, async {
                     loop {
                         let bytes = pipe.rx.recv().await?;
-                        let Some(frame) = wire::decode(&bytes) else {
-                            return None;
-                        };
+                        let frame = wire::decode(&bytes)?;
                         match frame.kind {
                             frame_type::ROWS_DONE => {
                                 let done: wire::RowsDoneHeader =
@@ -1485,26 +1483,25 @@ impl Actor {
                 }
                 match transport.push(push.batch_id, push.bytes).await {
                     Ok(ack) => {
-                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&ack) {
-                            if let (Some(b), Some(seq)) = (v["batchId"].as_str(), v["seq"].as_u64())
-                            {
-                                let mut sh = lock(&shared);
-                                if sink.acknowledge_update(b).is_ok() {
-                                    sh.pending.retain(|p| p.batch_id != b);
-                                }
-                                // Contiguity rule (see handle_frame ACK): an
-                                // own-push ack proves the server has rows up
-                                // to `seq`, not that WE have the interleaved
-                                // ones. The pull below starts at the honest
-                                // cursor and walks the gap.
-                                if seq <= sh.cursor + 1 {
-                                    sh.cursor = sh.cursor.max(seq);
-                                }
-                                let cursor = sh.cursor;
-                                drop(sh);
-                                sink.advance_cursor(cursor);
-                                let _ = events.send(ChatEvent::Applied);
+                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&ack)
+                            && let (Some(b), Some(seq)) = (v["batchId"].as_str(), v["seq"].as_u64())
+                        {
+                            let mut sh = lock(&shared);
+                            if sink.acknowledge_update(b).is_ok() {
+                                sh.pending.retain(|p| p.batch_id != b);
                             }
+                            // Contiguity rule (see handle_frame ACK): an
+                            // own-push ack proves the server has rows up
+                            // to `seq`, not that WE have the interleaved
+                            // ones. The pull below starts at the honest
+                            // cursor and walks the gap.
+                            if seq <= sh.cursor + 1 {
+                                sh.cursor = sh.cursor.max(seq);
+                            }
+                            let cursor = sh.cursor;
+                            drop(sh);
+                            sink.advance_cursor(cursor);
+                            let _ = events.send(ChatEvent::Applied);
                         }
                     }
                     Err(err) => {
@@ -1555,67 +1552,67 @@ impl Actor {
                 busy.store(false, Relaxed);
                 return;
             };
-            if state_frame.kind == frame_type::STATE {
-                if let Ok(state) =
+            if state_frame.kind == frame_type::STATE
+                && let Ok(state) =
                     serde_json::from_value::<wire::StateHeader>(state_frame.header.clone())
-                {
-                    lock(&shared).server = Some(state);
-                    apply_cursor_amnesty(&shared, sink.as_ref(), &state, &amnesty);
-                    let repaired_cursor = lock(&shared).cursor;
-                    if repaired_cursor < cursor && cursor <= state.head_seq {
-                        // This response was requested above the repaired
-                        // frontier. Discard it and repull from the honest
-                        // cursor rather than certifying an unfilled hole.
-                        busy.store(false, Relaxed);
-                        return;
-                    }
-                    let (repair_causal_history, repair_generation) = {
-                        let shared = lock(&shared);
-                        (shared.needs_checkpoint, shared.causal_gap_generation)
-                    };
-                    let contained = state.checkpoint_size == 0
-                        || (!repair_causal_history && sink.contains_frontier(&state_frame.payload));
-                    let plan = plan_catch_up(cursor, &state, contained);
-                    if repair_causal_history || cursor > state.head_seq {
-                        was_live = false;
-                    }
-                    if cursor > state.head_seq {
-                        sink.reset_cursor(0);
-                    }
-                    if let CatchUpPlan::CheckpointThenRows { .. } = plan {
-                        was_live = false;
-                        let fetched =
-                            tokio::time::timeout(CHECKPOINT_FETCH_DEADLINE, fetcher.fetch()).await;
-                        match fetched {
-                            Ok(Ok(bytes)) => {
-                                if sink.apply_checkpoint(&bytes, state.checkpoint_seq).is_err() {
-                                    busy.store(false, Relaxed);
-                                    return;
-                                }
-                                let _ = events.send(ChatEvent::Applied);
-                            }
-                            _ => {
+            {
+                lock(&shared).server = Some(state);
+                apply_cursor_amnesty(&shared, sink.as_ref(), &state, &amnesty);
+                let repaired_cursor = lock(&shared).cursor;
+                if repaired_cursor < cursor && cursor <= state.head_seq {
+                    // This response was requested above the repaired
+                    // frontier. Discard it and repull from the honest
+                    // cursor rather than certifying an unfilled hole.
+                    busy.store(false, Relaxed);
+                    return;
+                }
+                let (repair_causal_history, repair_generation) = {
+                    let shared = lock(&shared);
+                    (shared.needs_checkpoint, shared.causal_gap_generation)
+                };
+                let contained = state.checkpoint_size == 0
+                    || (!repair_causal_history && sink.contains_frontier(&state_frame.payload));
+                let plan = plan_catch_up(cursor, &state, contained);
+                if repair_causal_history || cursor > state.head_seq {
+                    was_live = false;
+                }
+                if cursor > state.head_seq {
+                    sink.reset_cursor(0);
+                }
+                if let CatchUpPlan::CheckpointThenRows { .. } = plan {
+                    was_live = false;
+                    let fetched =
+                        tokio::time::timeout(CHECKPOINT_FETCH_DEADLINE, fetcher.fetch()).await;
+                    match fetched {
+                        Ok(Ok(bytes)) => {
+                            if sink.apply_checkpoint(&bytes, state.checkpoint_seq).is_err() {
                                 busy.store(false, Relaxed);
                                 return;
                             }
+                            let _ = events.send(ChatEvent::Applied);
+                        }
+                        _ => {
+                            busy.store(false, Relaxed);
+                            return;
                         }
                     }
-                    let after = match plan {
-                        CatchUpPlan::RowsOnly { after }
-                        | CatchUpPlan::CheckpointThenRows { after } => after,
-                    };
-                    // A contained checkpoint covers the trimmed rows too;
-                    // otherwise the first post-checkpoint row looks like a
-                    // permanent sequence gap in the HTTPS fallback.
-                    let mut sh = lock(&shared);
-                    sh.cursor = if sh.cursor > state.head_seq {
+                }
+                let after = match plan {
+                    CatchUpPlan::RowsOnly { after } | CatchUpPlan::CheckpointThenRows { after } => {
                         after
-                    } else {
-                        sh.cursor.max(after)
-                    };
-                    if sh.causal_gap_generation == repair_generation {
-                        sh.needs_checkpoint = false;
                     }
+                };
+                // A contained checkpoint covers the trimmed rows too;
+                // otherwise the first post-checkpoint row looks like a
+                // permanent sequence gap in the HTTPS fallback.
+                let mut sh = lock(&shared);
+                sh.cursor = if sh.cursor > state.head_seq {
+                    after
+                } else {
+                    sh.cursor.max(after)
+                };
+                if sh.causal_gap_generation == repair_generation {
+                    sh.needs_checkpoint = false;
                 }
             }
             let mut applied = false;
@@ -1829,10 +1826,10 @@ impl Actor {
                 shared.rows_req_outstanding = false;
             }
             frame_type::PROBE_OK => {
-                if let Ok(probe) = serde_json::from_value::<wire::ProbeOkHeader>(frame.header) {
-                    if let Some(server) = &mut lock(&self.shared).server {
-                        server.head_seq = server.head_seq.max(probe.head_seq);
-                    }
+                if let Ok(probe) = serde_json::from_value::<wire::ProbeOkHeader>(frame.header)
+                    && let Some(server) = &mut lock(&self.shared).server
+                {
+                    server.head_seq = server.head_seq.max(probe.head_seq);
                 }
             }
             frame_type::STATE => {

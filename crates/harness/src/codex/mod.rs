@@ -843,12 +843,11 @@ fn prompt_input(text: &str) -> Value {
     let mut input = vec![json!({"type": "text", "text": invocation_prompt(text)})];
     let mut seen = std::collections::HashSet::new();
     for (_, invocation) in invocation_links(text) {
-        if let Invocation::Skill { name, path, .. } = invocation {
-            if !zeron_proto::invocation::native_skill_identity(&path)
-                && seen.insert((name.clone(), path.clone()))
-            {
-                input.push(json!({"type": "skill", "name": name, "path": path}));
-            }
+        if let Invocation::Skill { name, path, .. } = invocation
+            && !zeron_proto::invocation::native_skill_identity(&path)
+            && seen.insert((name.clone(), path.clone()))
+        {
+            input.push(json!({"type": "skill", "name": name, "path": path}));
         }
     }
     Value::Array(input)
