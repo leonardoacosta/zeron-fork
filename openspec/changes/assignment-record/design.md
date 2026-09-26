@@ -12,9 +12,9 @@ registry LWW rows lose the history and transition checks assignments need. Neith
 
 ## Record and revision boundary
 
-The details below refine the approved design for written review. Stable mutation identities,
-immutable owner/profile bindings, and RPC-only initial exposure were not separately approved in
-conversation. They are proposed constraints, not additional execution authorization.
+The details below refine the sectional design. Stable mutation identities, immutable owner/profile
+bindings, and RPC-only initial exposure were approved with the written specification on
+2026-09-26 at 08:29 UTC. They grant no authority for external execution.
 
 An assignment has a stable ID, owning device, immutable profile binding, and monotonically increasing revision.
 Its content contains objective, allowed actions, linked sessions, findings, evidence references, reviews,

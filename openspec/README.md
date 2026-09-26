@@ -57,5 +57,5 @@ each feature's discovery. Existing tests were inspected or located, not executed
 
 ## Current change
 
-[`assignment-record`](changes/assignment-record/proposal.md): design approved in conversation,
-written specification awaiting user review. Later phases require their own feature design and approval.
+[`assignment-record`](changes/assignment-record/proposal.md): written specification approved for execution
+on 2026-09-26 at 08:29 UTC. Later phases require their own feature design and approval.

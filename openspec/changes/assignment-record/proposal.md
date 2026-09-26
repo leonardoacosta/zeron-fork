@@ -1,6 +1,9 @@
 # Persistent assignment records
 
-Status: design approved; written specification awaiting review. No implementation authorized by this artifact.
+Status: written specification approved by the user on 2026-09-26 at 08:29 UTC. Execution authorized for this change only.
+
+Execution owner: Jcode coordinator with sole code implementation worker
+`session_calf_1790411391294_fb7a07dbe0864861`. Other roadmap changes and external actions remain unauthorized.
 
 ## Why
 
