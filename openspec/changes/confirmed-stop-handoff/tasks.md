@@ -153,3 +153,6 @@ Expected: complete coverage/acyclic dependency/path checks pass, exit0; whitespa
 
 ## Rollback
 Persist lifecycle transition before acknowledgment. Downgrade active/uncertain work to hold; no replay of unconfirmed external effects.
+
+## Exact embedded-code validation
+On2026-09-26 20:28UTC the Rust block was extracted from this canonical tasks.md, compiled with `rustc --edition=2024 --test`, and its tests passed. This validates the literal proposed pure core, not production integration or whole-unit acceptance. Evidence: overnight run overnight_1790451935422_12840308488589231076 validation/exact-embedded-core-tests.json.
