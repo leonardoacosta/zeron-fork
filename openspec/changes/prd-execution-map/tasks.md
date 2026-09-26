@@ -15,6 +15,15 @@
 ## Handoff
 First named refinement: `ci-promotion-gates`. R0 blocks later implementation promotion until clean enforceable CI baseline exists. Then follow design.md dependency rounds; no blanket `apply:all` authorization supplied by plan authoring.
 
+## Overnight execution-readiness refinement (current, not completed decomposition counts)
+- [x] Re-audit actual tasks:27 of original33 units still generic; do not count structural validation as readiness.
+- [x] Cold-extract CI/catalog/pure-core proposals, execute actual commands, repair iOS skip-test and lint failures.
+- [x] Split hidden profile runtime/access cycles into catalog, policy-core, runtime enforcement, runtime activation and migration responsibilities. Current inventory36 units; earlier33-unit review is historical only.
+- [ ] Complete durable policy and exact engine binding/dispatch integration code and tests, not just pure evaluator source.
+- [ ] Complete all remaining schema/RPC/native/provider/UI task contracts with exact code or bounded research outcomes; no undefined future APIs.
+- [ ] Run cross-unit contract agreement and new cold executor trials on the final inventory, including CI after each refinement round.
+- [ ] Record per-unit readiness and genuine external decision/access gates, obtain final review, and commit tested final handoff.
+
 ## Review evidence
 Self-review found missing explicit engineering execution beyond investigation; added engineering-stage-runner before final validation. Independent reviewer butterfly returned Approved after reviewing all33 units against PRD and dependency/readiness/CI boundaries. Validator passed33 units, all19 requirements,10 round barriers,130 explicit cases. This is a reviewed decomposition/refinement handoff, not code-complete implementation approval.
 
