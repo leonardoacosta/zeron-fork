@@ -4,6 +4,14 @@
 **Scope:** Implementation would change only `.github/workflows/ui-tests.yml`, `.github/workflows/preview-tests.yml`, `.github/workflows/windows.yml`, plus `openspec/changes/ci-promotion-gates/tests/test_promotion_gate.py`. No product code or new workflow. No workflow implementation occurred in this planning task.
 **Readiness:** exact implementation proposal, pending named approval; hosted promotion acceptance remains blocked until configured and observed. The snippets and stdlib predicate are executable, but hosted branch-rule setup and a disposable failing-PR proof remain outstanding. An administrator must require all three summary contexts and verify failure blocks merge. Local structural tests are not hosted enforcement.
 
+## Pre-implementation baseline check
+Run the required existing commands before changing workflow files:
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+```
+Record exact HEAD/tree and output. If they fail, classify missing system toolchain/dependency versus source defect and create a bounded repair task in this same change before promotion. Never lower lint severity or claim another agent's uncommitted repair is the tested commit. Concurrent quality work may change baseline; re-read current workflow and run checks on the actual integrated revision. This step does not authorize broad formatting unrelated user edits.
+
 ## Existing checks to reuse
 
 - `.github/workflows/ui-tests.yml`: `rust-quality`, `session-sync-regressions`, `ui-tests`, `macos-frame-recovery`, conditional `ios-tests`, `linux-browser`.
