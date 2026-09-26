@@ -1,41 +1,33 @@
-# Immediate grouped safety exceptions: design boundary
+# Exception attention: durable state before notification
 
-## Read first
-`../../../docs/fork-prd.md`, `../prd-execution-map/design.md`, this proposal/spec, and the prerequisite changes `confirmed-stop-handoff`, `revision-evidence-bindings`. Baseline `1427da6`; all source lines must be refreshed after prerequisite changes. Paths below are existing anchors, not permission to edit every file.
+Status: proposed integration contract, exact implementation tasks still required. Source fact: `crates/ui/src/notify.rs` post returns unit, disabled/unavailable delivery is a no-op, and errors are logged/swallowed. Therefore calling post cannot establish notification delivery or acknowledgment.
 
-## Existing surfaces and file responsibilities
-- `crates/ui/src/notify.rs`: existing source/test/config anchor; inspect its graph card before source.
-- `crates/ui/src/state.rs`: existing source/test/config anchor; inspect its graph card before source.
-- `crates/engine/src/rpc.rs`: existing source/test/config anchor; inspect its graph card before source.
-- `crates/sync/src/store.rs`: existing source/test/config anchor; inspect its graph card before source.
+## Existing anchors
+- `crates/ui/src/notify.rs`: best-effort native presentation only; never acceptance/stop/resume authority.
+- `crates/ui/src/state.rs`: native state subscriptions and event handling. Add profile-bound exception projection here after engine persistence.
+- `crates/engine/src/rpc.rs`: typed owner boundary for list/watch/acknowledge; no client-supplied profile store selector.
+- `crates/sync/src/store.rs`: authoritative durable exception record/update transaction, not registry LWW replacement.
 
-## Integration contract to freeze before implementation
-- Input: explicit actor/work-profile, operation identity, relevant immutable version bindings and requested scope; validate at owning engine boundary, not merely UI.
-- Output: typed observed result with version/owner, unsupported/denied/uncertain states distinguished; no fake success.
-- Side effects: enumerate each process/file/database/network effect in refinement, including retries and failure between persistence and acknowledgment.
-- Ownership: reuse current Rust engine + typed RPC + profile SQLite where appropriate; registry LWW is not authoritative revision history. Reuse existing mechanisms before adding new module/dependency.
-- Interface freeze: discovery must record exact existing symbols and proposed DTO/state transitions, error payloads, capability identifier, migration/version compatibility and callers/tests. No names in this paragraph create a runtime API.
+## Proposed record contract
+Exception key is `(work_profile_id, affected_work_id, run_generation, exception_kind)`. A repeated observation updates the same active incident but appends observation provenance. Distinct run generation or profile cannot coalesce. `exception_kind` is a closed enum: StopUncertain, AuthorityRevoked, DependencyInvalidated, ConflictUnresolved, ExternalEffectUncertain, RequiredCheckFailed. Routine progress is not an exception kind.
 
-## Required behavior
-Persist and group actionable exceptions with source, profile, affected work, blocker/uncertainty and safe next action. Routine progress goes to activity, not urgent alerts. Notification delivery/acknowledgment does not accept work, grant authority or resume execution. Safety features cannot defer essential alerts until morning briefings ship.
+Record includes stable incident ID, first/last observation sequence, current blocker evidence references, redacted summary, affected exact binding, resolution state and acknowledgment state. `Acknowledged` means user saw/dismissed it, never resolved. Resolution requires owner-observed corrected condition with evidence; UI click cannot set it. Action labels are explicit safe navigation/review actions, not generic resume buttons.
 
-## Misinterpretations to reject in review
-- Do not use notification click as approval.
-- No silent suppression of safety blockers.
-- System One alert is not an authorization grant.
+Deliver notification only after record commits. Notifications are advisory projection; failures leave incident active and visible in in-product activity. Restart lists active incidents before attempting delivery. If runtime cannot determine delivered status, store attempted/unknown, not delivered. Do not retrofit fake receipts onto current notify::post. Windows no-op remains explicit unsupported native delivery, with in-product exception visibility required.
 
-## Failure and compatibility scenarios
+## Exact acceptance boundaries
+1. Repeated same-key stop uncertainty creates one active incident and multiple retained observations. Different profile/run generation creates separate incident.
+2. Inject SQLite write failure: no notification attempted before durable record; caller retains stop hold and reports record persistence failure safely.
+3. Disable native notifications via existing environment flag: incident remains retrievable after owner restart; no assertion of native delivery.
+4. Acknowledge/dismiss through owner RPC: acknowledgment recorded, unresolved blocker remains, no Harness::run or handback event.
+5. Resolve stale generation: reject, current incident unaffected. Redacted summary cannot contain provider tokens or unrelated private content.
+6. Native Mac/Linux delivery test observes actual banner/activity when available; receipt absence is unknown. Do not call screenshot evidence proof of human acknowledgment.
+
+## Canonical scenarios
 - C01: Repeated same stop uncertainty creates one grouped alert with updated observations, not an alert storm.
 - C02: Notification delivery fails: blocked state remains durable and visible after restart.
 - C03: User dismisses alert: execution remains held.
 - C04: Profile-private alert must not leak into another profile destination.
 
-## Rollout / rollback
-Keep exception records even when delivery disabled. Fallback in-product activity/blocked state remains; no auto-resume during rollback.
-
-## Acceptance boundary
-Native notification/activity integration plus delivery-failure/restart/grouping and cross-profile redaction assertions.
-Structural inspection and provider doubles may support but cannot replace this boundary. External/native prerequisites unavailable means blocked, not complete. User has authorized local homelab/Mac work previously; that does not authorize unrelated Brown/cloud/provider mutations or spend.
-
-## Implementation readiness
-This is a bounded behavior contract, not code-complete implementation instructions. A `feature` refinement must replace discovery tasks with exact 2–5 minute test/red/minimal-code/green/commit steps, complete code blocks and actual symbol names, then pass review. Newly created paths must be explicitly listed there. If provider/UI/product judgment remains genuinely unresolved, retain blocked status and ask that one question rather than choose silently.
+## Rollback
+Keep durable incident history and blocked owner state. Disable presentation safely without discarding exceptions. No rollback automatically resumes work. Provider/channel settings remain the later briefing unit's responsibility; this unit needs only existing in-product activity and native best-effort notification adapter.
