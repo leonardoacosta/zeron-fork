@@ -40,3 +40,6 @@ Structural inspection and provider doubles may support but cannot replace this b
 
 ## Implementation readiness
 This is a bounded behavior contract, not code-complete implementation instructions. A `feature` refinement must replace discovery tasks with exact 2–5 minute test/red/minimal-code/green/commit steps, complete code blocks and actual symbol names, then pass review. Newly created paths must be explicitly listed there. If provider/UI/product judgment remains genuinely unresolved, retain blocked status and ask that one question rather than choose silently.
+
+## Exact inventory task validation
+Refined tasks now give actual Cargo.lock/npm lock inventory and byte-exact packaged-font checks rather than asking for irrelevant DTO design. On19:11 UTC the inventory snippet emitted1295 actual rows. Positive/missing-notice controls ran successfully in a disposable scratch fixture. This is synthetic snippet validation, not completed licensing review or actual artifact acceptance. All other dependency terms remain subject to exact-source inventory.

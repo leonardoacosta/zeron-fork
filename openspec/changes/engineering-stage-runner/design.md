@@ -41,3 +41,6 @@ Structural inspection and provider doubles may support but cannot replace this b
 
 ## Implementation readiness
 This is a bounded behavior contract, not code-complete implementation instructions. A `feature` refinement must replace discovery tasks with exact 2–5 minute test/red/minimal-code/green/commit steps, complete code blocks and actual symbol names, then pass review. Newly created paths must be explicitly listed there. If provider/UI/product judgment remains genuinely unresolved, retain blocked status and ask that one question rather than choose silently.
+
+## Early admission limitation
+Until conflict-admission-observer is promoted, runner acceptance uses only explicitly isolated single-run scope. Shared-resource coexistence with direct sessions requires a conservative affected-resource hold or a new hard dependency on that observer. Do not advertise concurrent production scheduling from isolated acceptance; do not globally serialize unrelated work as the final solution.

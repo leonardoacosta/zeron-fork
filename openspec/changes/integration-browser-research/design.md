@@ -1,40 +1,37 @@
 # Browser provider isolation research: design boundary
 
 ## Read first
-`../../../docs/fork-prd.md`, `../prd-execution-map/design.md`, this proposal/spec, and the prerequisite changes `ci-promotion-gates`. Baseline `1427da6`; all source lines must be refreshed after prerequisite changes. Paths below are existing anchors, not permission to edit every file.
+`../../../docs/fork-prd.md`, `../prd-execution-map/design.md`, this proposal/spec, and prerequisite `ci-promotion-gates`. Baseline `1427da6`; refresh citations against the current checkout. Listed paths are read-only anchors.
 
-## Existing surfaces and file responsibilities
-- `crates/ui/src/browser/mod.rs`: existing source/test/config anchor; inspect its graph card before source.
-- `crates/ui/src/browser/model.rs`: existing source/test/config anchor; inspect its graph card before source.
-- `crates/ui/src/browser/macos.rs`: existing source/test/config anchor; inspect its graph card before source.
-- `scripts/run-macos-browser-fixture.sh`: existing source/test/config anchor; inspect its graph card before source.
-- `docs/fork-prd.md`: existing source/test/config anchor; inspect its graph card before source.
+## Existing surfaces and responsibilities
+- `crates/ui/src/browser/mod.rs`: current browser actions and UI boundaries.
+- `crates/ui/src/browser/model.rs`: browser state/data model.
+- `crates/ui/src/browser/macos.rs`: native browser process and lifecycle behavior.
+- `scripts/run-macos-browser-fixture.sh`: existing local fixture launch contract; inspect only, do not run without explicit local fixture authorization.
+- `docs/fork-prd.md`: approved isolation and scope requirements.
 
-## Integration contract to freeze before implementation
-- Input: explicit actor/work-profile, operation identity, relevant immutable version bindings and requested scope; validate at owning engine boundary, not merely UI.
-- Output: typed observed result with version/owner, unsupported/denied/uncertain states distinguished; no fake success.
-- Side effects: enumerate each process/file/database/network effect in refinement, including retries and failure between persistence and acknowledgment.
-- Ownership: reuse current Rust engine + typed RPC + profile SQLite where appropriate; registry LWW is not authoritative revision history. Reuse existing mechanisms before adding new module/dependency.
-- Interface freeze: discovery must record exact existing symbols and proposed DTO/state transitions, error payloads, capability identifier, migration/version compatibility and callers/tests. No names in this paragraph create a runtime API.
+All listed paths are pre-existing read-only anchors for this research. They are not proposed product edits.
+Existing anchors remain exactly: `crates/ui/src/browser/mod.rs`, `crates/ui/src/browser/model.rs`, `crates/ui/src/browser/macos.rs`, `scripts/run-macos-browser-fixture.sh`, `docs/fork-prd.md`.
 
-## Required behavior
-Compare existing embedded browser capability and candidate automation providers against required profile/session isolation, explicit signed-in scope, stopping and redacted evidence. Record API/version and credential handling, select only after reviewed decision. Browser choice is a genuine open decision, not a reason to reopen approved isolation rules.
+## Bounded questions
+For the built-in browser and each candidate independently, consult official public docs and ask: What exact product/version/platform is documented? Does its documented storage context isolate cookies, cache, local storage and downloads per requested work profile/session? How is signed-in scope explicitly granted and revoked? What native session/process ID associates actions with that scope? What documented action proves startup, status and completed stop/cancellation? Does close return before child work ends? What evidence can be captured and redacted? Where does page data travel, including cloud upload/telemetry? What credentials are stored and where? Cite exact page/section/version. Unknown means no inference.
 
-## Misinterpretations to reject in review
-- Do not assume Chrome profile equals work profile.
-- Do not pick a provider based only on available skill name.
+## Evidence states and child adapter schema
+Each evidence row contains: `claim_id`, `subject`, `claim`, `state` (`verified`, `contradicted`, `unknown`, `blocked`), `evidence_kind` (`official_doc`, `local_source`, `local_observation`), `source_or_command`, `version_or_commit`, `observed_at_utc`, `result_or_excerpt`, `scope`, `limitations`, `reviewer`. Public documentation establishes documented claims only. A local harmless fixture observation, if separately authorized, is not proof of provider-wide behavior.
 
-## Failure and compatibility scenarios
-- C01: Provider supports screenshots but cannot isolate storage: does not satisfy session isolation.
-- C02: Provider close command returns before tool action stops: cancellation remains unverified.
-- C03: Provider needs cloud data upload: disclose data boundary before any private page use.
+Each possible follow-up record contains: `adapter_id` (provisional label, not API), `system_identity`, `supported_versions`, `capability`, `owner_boundary`, `inputs_and_scope`, `outputs_and_states`, `native_id`, `start_proof`, `stop_proof`, `status_proof`, `configuration_source`, `auth_boundary`, `data_boundary`, `isolation_boundary`, `read_only_operations`, `write_operations` (`not authorized` absent separate approval), `failure_and_retry_behavior`, `compatibility`, `evidence_refs`, `rejection_reasons`, `decision_state` (`candidate`, `blocked`, `rejected`, `needs_review`). This is research output, not a runtime interface.
 
-## Rollout / rollback
-No user browser profile mutation during research; disposable fixtures only under authorized scope. Preserve existing browser unchanged.
+## Rejection criteria
+A candidate is rejected or blocked if profile/session storage isolation is undocumented or unproven; screenshot support is the only evidence; session identity cannot be tied to actions; close returns without action-stop proof; credentials or private data may be uploaded without a fully documented and approved boundary; product/version is unpinned; meaningful evidence cannot be redacted; or testing requires modifying a user profile, private page, credentials, provider install/configuration, external probe, or spend. Do not choose based only on an available skill name.
 
-## Acceptance boundary
-Harmless local page/isolation probe where possible; unresolved provider decision explicitly blocks scoped-browser-capability implementation.
-Structural inspection and provider doubles may support but cannot replace this boundary. External/native prerequisites unavailable means blocked, not complete. User has authorized local homelab/Mac work previously; that does not authorize unrelated Brown/cloud/provider mutations or spend.
+## Failure scenarios
+- C01: screenshots without isolated storage do not meet isolation.
+- C02: close returns before action-stop proof: cancellation remains `unknown`/`blocked`.
+- C03: cloud upload required: disclose boundary; no private page use.
+- Unknown prerequisite: block with reason rather than claiming success.
 
-## Implementation readiness
-This is a bounded behavior contract, not code-complete implementation instructions. A `feature` refinement must replace discovery tasks with exact 2–5 minute test/red/minimal-code/green/commit steps, complete code blocks and actual symbol names, then pass review. Newly created paths must be explicitly listed there. If provider/UI/product judgment remains genuinely unresolved, retain blocked status and ask that one question rather than choose silently.
+## Scope and acceptance boundary
+Public official documentation and read-only local source inspection only. No browser session, user profile, private page, credentials, external provider API, network probe, installation, configuration change, or cloud upload. A future harmless local fixture probe requires explicit scope/authorization and must not be represented as public API proof. Research does not select a provider, claim a runtime interface, or claim all future adapters are implementable.
+
+## Rollback
+Only these canonical design/tasks files may change. Preserve existing browser behavior and all user profile state.

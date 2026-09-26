@@ -1,42 +1,38 @@
 # GitHub, ADO, MCP and Aperture boundary research: design boundary
 
 ## Read first
-`../../../docs/fork-prd.md`, `../prd-execution-map/design.md`, this proposal/spec, and the prerequisite changes `ci-promotion-gates`. Baseline `1427da6`; all source lines must be refreshed after prerequisite changes. Paths below are existing anchors, not permission to edit every file.
+`../../../docs/fork-prd.md`, `../prd-execution-map/design.md`, this proposal/spec, and prerequisite `ci-promotion-gates`. Baseline `1427da6`; refresh all source citations against the current checkout. Listed source anchors are read-only.
 
-## Existing surfaces and file responsibilities
-- `crates/engine/src/source_control.rs`: existing source/test/config anchor; inspect its graph card before source.
-- `crates/mcp/src/tools.rs`: existing source/test/config anchor; inspect its graph card before source.
-- `crates/mcp/src/jsonrpc.rs`: existing source/test/config anchor; inspect its graph card before source.
-- `docs/mcp.md`: existing source/test/config anchor; inspect its graph card before source.
-- `docs/fork-prd.md`: existing source/test/config anchor; inspect its graph card before source.
+## Existing surfaces and responsibilities
+- `crates/engine/src/source_control.rs`: existing GitHub/source-control behavior.
+- `crates/mcp/src/tools.rs`: exposed tool names, inputs and policy gates.
+- `crates/mcp/src/jsonrpc.rs`: transport and dispatch boundary.
+- `docs/mcp.md`: documented MCP contract.
+- `docs/fork-prd.md`: product authority and exclusions.
 
-## Integration contract to freeze before implementation
-- Input: explicit actor/work-profile, operation identity, relevant immutable version bindings and requested scope; validate at owning engine boundary, not merely UI.
-- Output: typed observed result with version/owner, unsupported/denied/uncertain states distinguished; no fake success.
-- Side effects: enumerate each process/file/database/network effect in refinement, including retries and failure between persistence and acknowledgment.
-- Ownership: reuse current Rust engine + typed RPC + profile SQLite where appropriate; registry LWW is not authoritative revision history. Reuse existing mechanisms before adding new module/dependency.
-- Interface freeze: discovery must record exact existing symbols and proposed DTO/state transitions, error payloads, capability identifier, migration/version compatibility and callers/tests. No names in this paragraph create a runtime API.
+All listed paths are pre-existing read-only anchors for this research. They are not proposed product edits.
+Existing anchors remain exactly: `crates/engine/src/source_control.rs`, `crates/mcp/src/tools.rs`, `crates/mcp/src/jsonrpc.rs`, `docs/mcp.md`, `docs/fork-prd.md`.
 
-## Required behavior
-Map current GitHub read/status and MCP behavior; verify exact ADO and Tailscale Aperture identities, versions, APIs and authority boundaries. Record external planning/review/specification systems as authoritative. Determine remote-only repository support separately from local storage convenience. Produce independently scoped adapter follow-ups per verified system, never a blanket integration permission.
+## Bounded questions
+For current GitHub behavior, what operations and data are actually present in local source and docs? For MCP, which tools/inputs and local authority checks exist? For GitHub, ADO, Tailscale/Aperture separately, what is the canonical product/publisher, official public API documentation, supported version, documented authentication, read/write scope, status, pagination, rate/failure semantics and authoritative source for planning/review/specification? What does the official doc say about remote repositories without a local checkout? Which behavior is local-only versus external? Cite page, section, date/version. Do not infer GitHub/ADO parity or treat Tailscale transport as workflow authority.
 
-## Misinterpretations to reject in review
-- Do not treat Tailscale transport or Aperture access as workflow authority.
-- Do not fabricate ADO/GitHub parity.
-- Never dump credentials while probing versions.
+## Evidence and child adapter schemas
+Use the common evidence row: `claim_id`, `subject`, `claim`, `state` (`verified`, `contradicted`, `unknown`, `blocked`), `evidence_kind` (`official_doc`, `local_source`, `local_observation`), `source_or_command`, `version_or_commit`, `observed_at_utc`, `result_or_excerpt`, `scope`, `limitations`, `reviewer`. A public document citation is `official_doc`, never live observation. Local source inspection is not proof of provider behavior.
 
-## Failure and compatibility scenarios
-- C01: MCP tool available but action outside profile/workflow scope: unavailable for that action.
-- C02: External issue says Done while local output unverified: no acceptance transition.
-- C03: Remote repository cannot be materialized locally: report capability limitation, not require local storage as product policy.
-- C04: ADO/Brown endpoint discovered: no access attempt solely because Brown profile exists.
+Each possible follow-up gets a research-only record: `adapter_id` (provisional, not API), `system_identity`, `supported_versions`, `capability`, `owner_boundary`, `inputs_and_scope`, `outputs_and_states`, `native_id`, `start_proof`, `stop_proof`, `status_proof`, `configuration_source`, `auth_boundary`, `data_boundary`, `isolation_boundary`, `read_only_operations`, `write_operations`, `failure_and_retry_behavior`, `compatibility`, `evidence_refs`, `rejection_reasons`, `decision_state` (`candidate`, `blocked`, `rejected`, `needs_review`). Unknown values stay unknown. Not a runtime DTO.
 
-## Rollout / rollback
-Research only, read-only probes scoped to approved systems. Adapter rollback must preserve external source of truth and reconcile effects.
+## Rejection criteria
+Reject/block a follow-up if product/version or official docs cannot be pinned; authority is unclear; access requires credentials, private endpoint, network probe, Brown tenant/profile, install/upgrade, write action, spend, or other unapproved access; only transport connectivity is shown; source-of-truth, remote-only behavior, idempotency or failure semantics are unsubstantiated; local output is not verified. In particular, an external issue marked Done cannot prove local acceptance, and a Brown endpoint is never permission to access it.
 
-## Acceptance boundary
-Exact provider/version capability matrix and authoritative-source mapping; write probes await named sandbox authorization.
-Structural inspection and provider doubles may support but cannot replace this boundary. External/native prerequisites unavailable means blocked, not complete. User has authorized local homelab/Mac work previously; that does not authorize unrelated Brown/cloud/provider mutations or spend.
+## Failure scenarios
+- C01: MCP tool outside profile/workflow scope is unavailable for that action.
+- C02: external issue says Done but local output is unverified: no acceptance transition.
+- C03: remote-only repository unsupported by current implementation: report limitation; do not turn local materialization into a product policy.
+- C04: ADO/Brown endpoint discovered: do not access it.
+- Unknown prerequisite: block with reason; no silent success/reroute.
 
-## Implementation readiness
-This is a bounded behavior contract, not code-complete implementation instructions. A `feature` refinement must replace discovery tasks with exact 2–5 minute test/red/minimal-code/green/commit steps, complete code blocks and actual symbol names, then pass review. Newly created paths must be explicitly listed there. If provider/UI/product judgment remains genuinely unresolved, retain blocked status and ask that one question rather than choose silently.
+## Scope and acceptance boundary
+Read-only local source/documentation inspection and public official documentation lookup only. No external API calls or endpoint probes, private access, credentials, or writes. Record API claims as documented, not observed. This research can propose separately scoped work for verified systems; it does not select interfaces or establish all future adapters as implementable.
+
+## Rollback
+Only these canonical design/tasks files may change. Preserve external source-of-truth assumptions; this work performs no external side effects.

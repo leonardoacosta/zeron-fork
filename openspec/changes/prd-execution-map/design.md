@@ -36,6 +36,8 @@ A round is an integration boundary, not an estimate or permission to run all cha
 
 Research siblings do not select providers silently. `integration-provider-adapters` must fan out into reviewed provider-specific child changes before code. Those exact adapter dependencies must be added to consumers before they become ready; an umbrella research result is not an implemented provider.
 
+Early runner acceptance before conflict admission exists is restricted to an explicitly isolated, single-run test scope. Do not advertise production concurrent admission from R5/R6 runner success. If an early runner can coexist with direct sessions on shared resources, it must enforce a conservative affected-resource hold or depend on `conflict-admission-observer`; it may not silently launch overlapping work. This restriction is not permission to globally serialize unrelated work in the final product.
+
 ## Complete requirement mapping
 
 | PRD | Primary units | Must-not-lose clauses |

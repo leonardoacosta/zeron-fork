@@ -1,54 +1,128 @@
-# Preserve direct sessions and two-device baseline execution contract
+# Existing-foundation acceptance tasks
 
-**Goal:** Codify current successful assignment persistence and ordinary-session behavior as regression gates.
-**Architecture:** Existing Rust engine/proto/RPC/profile storage and native clients are the starting point. Freeze interfaces from observed source; no speculative provider API or generic framework.
-**Tech stack:** Rust/Tokio/Serde/SQLite; GPUI/Swift/Worker TypeScript only if the approved surface requires them.
-**Status:** executable discovery/refinement steps; product implementation NOT READY.
-**Dependencies:** `ci-promotion-gates`, `assignment-record`. Read-only research can proceed without using unimplemented prerequisite APIs; implementation waits for all prerequisite CI promotion records.
+Scope: regression evidence for already implemented behavior only. No product implementation, new DTOs, APIs, tests, service operations, or commit are part of this unit. Do not interpret a missing native run as a request to invent behavior.
 
-## D1. Recover authority and source (one bounded read per listed anchor)
-**Files:** design.md and tasks.md in this change; read-only source anchors in design.md.
-- [ ] Read PRD clauses ZF-01, ZF-03 and every C-scenario in `specs/foundation-compatibility/spec.md`; state excluded sibling behavior in design.md.
-- [ ] From repository root, verify listed anchors exist:
+## Existing automated acceptance
+
+From the repository root, run this exact shell block. It lists each exact test first, asserts one match (preventing a zero-test pass), and then executes that exact fully qualified test. `--locked` holds dependency resolution fixed.
+
 ```bash
-python3 - <<'PY'
-from pathlib import Path
-paths = ['crates/engine/tests/device_routing.rs', 'crates/engine/tests/local_profiles.rs', 'crates/engine/tests/restart_resume.rs', 'crates/rpc/src/lib.rs', 'apps/zeron/src/daemon.rs', 'openspec/changes/assignment-record/tasks.md']
-for name in paths:
-    p = Path(name)
-    assert p.is_file(), name
-    print(name, len(p.read_text().splitlines()), "lines")
-PY
+set -eu
+run_one() {
+  package="$1"; test_name="$2"; shift 2
+  listing=$(cargo test --locked -p "$package" "$@" "$test_name" -- --list --exact)
+  printf '%s\n' "$listing"
+  count=$(printf '%s\n' "$listing" | grep -Fxc "$test_name: test" || true)
+  test "$count" -eq 1 || { echo "expected one test: $test_name, got $count" >&2; exit 1; }
+  cargo test --locked -p "$package" "$@" "$test_name" -- --exact
+}
+run_one zeron-rpc tests::null_unary_response_completes_call --lib
+run_one zeron-engine rpc::tests::assignment_create_and_promote_empty_session_over_rpc --lib
+run_one zeron-engine assignment_routing_rejects_old_owner_without_writing_locally --test device_routing
+run_one zeron-sync store::tests::assignment_mutations_commit_current_history_and_replay_together --lib
+run_one zeron-sync store::publication_failure_tests::failed_assignment_mutation_write_rolls_back_create_and_update_atomically --lib
 ```
-Expected: one line per anchor, exit0. Missing path means re-discover with graft and correct this contract; do not create a dummy file. Read `graft/INDEX.md` then matching cards. Use `graft ask "Preserve direct sessions and two-device baseline" --source` only if the CLI is already available; graph files are sufficient.
-- [ ] In design.md, cite exact symbols/current line spans for the input, authority, persistence and side-effect paths. For each C-scenario record whether current behavior is observed, contradicted or not yet tested. Do not equate missing grep hit with absence proof.
 
-## D2. Freeze one implementable contract
-- [ ] Record exact DTO fields/enums, state transitions, error classes and owning API boundaries in design.md. For a research-only unit, record actual provider/version observations and explicitly blocked decisions instead of inventing DTOs.
-- [ ] Assign each C-scenario one exact native test path/name and its observable assertion. List existing files modified versus new files created, role of each file and shared-file conflicts with other changes.
-- [ ] Enumerate crash points, concurrent callers, stale revisions, unauthorized caller, unavailable owner/provider and compatibility with older readers. Explain rollback using this design's explicit rule.
-- [ ] Replace D-only tasks with atomic failing-test/run-red/minimal-code/run-green/commit steps using actual complete code and exact commands. Do not write a second plan file or mark implementation-ready while this step is incomplete.
+Expected assertions and evidence limits:
 
-## D3. Review and admission
-- [ ] Self-review every PRD clause/C-scenario, all prohibited interpretations, type names across steps, reverse dependencies and rollback. An independent reviewer must challenge authority boundaries and whether the tests can pass without the intended behavior.
-- [ ] Get the named change's written approval/readiness decision recorded in proposal.md. A changed public contract returns to review; do not treat a prior broad deployment mandate as approval for new product architecture.
-- [ ] Run the planning validator from repository root:
+- `tests::null_unary_response_completes_call`: a null unary result finishes within one second and remains JSON null. Existing automated evidence.
+- `rpc::tests::assignment_create_and_promote_empty_session_over_rpc`: promotes an existing empty session, verifies revision/readback/replay and invalid input, and asserts the counting harness has zero runs. Existing automated no-execution evidence; not a native direct-session UI assertion.
+- `assignment_routing_rejects_old_owner_without_writing_locally`: an old owner lacking capability returns the explicit unsupported error and local GET remains null. Fake-relay assignment-routing evidence only; not hosted-authentication evidence and not proof that ordinary sessions stay available in every failure mode.
+- `store::tests::assignment_mutations_commit_current_history_and_replay_together`: current record, history, and mutation replay persist consistently across store reopen.
+- `store::publication_failure_tests::failed_assignment_mutation_write_rolls_back_create_and_update_atomically`: injected mutation-table failure leaves create/update state and history unchanged across reopen; removing the trigger permits a later write. Isolated SQLite rollback evidence, not a live-service rollback.
+
+## Required scenario sentences
+
+Preserve these exact sentences from the shared roadmap:
+
+- Owner restarts after acknowledged assignment: native second-device read/history match and owner unchanged.
+- Old owner lacks capability: assignment rejected explicitly, ordinary session unaffected.
+- Successful null response completes RPC rather than hanging.
+- Direct session opens without an assignment or hidden workflow launch.
+
+## Native Mac/homelab acceptance (new run, not existing test evidence)
+
+A real persistent-service recovery run already exists in `/home/nyaptor/.local/share/zeron-fork-services/README.md` and its `acceptance-before.log` / `acceptance-after-crash.log`. It records prior routed create/replay/get/history checks and recovery after service processes crashed. Treat that strictly as **existing runtime evidence**, not as a new run for this change. Its `check.mjs` names the actual WebSocket RPC protocol (`EngineInfo`, `CreateAssignment`, `GetAssignment`, `ListAssignmentHistory`) but has fixture-specific owner and assignment IDs. Do not copy those IDs as universal fixtures.
+
+For a new run use the isolated persistent test app/profile and homelab owner. The local Mac `EngineRpc` WebSocket endpoint defaults to `ws://127.0.0.1:28755`. Do not touch the original Zeron application or its data. Set `RPC_URL`, `OWNER_DEVICE_ID`, `ASSIGNMENT_ID`, and `MUTATION_ID` explicitly. Choose a fresh unique assignment ID and mutation ID for each write run. The following complete JavaScript uses the actual RPC method names and wire envelope established by the existing `check.mjs`. `WRITE=1` performs the first routed durable-write check; omitting it only re-reads and verifies an already-created assignment after owner restart.
+
+```js
+// Save as $JCODE_SCRATCH_DIR/foundation-rpc-check.mjs.
+import assert from 'node:assert/strict';
+const url = process.env.RPC_URL ?? 'ws://127.0.0.1:28755';
+const owner = process.env.OWNER_DEVICE_ID;
+const id = process.env.ASSIGNMENT_ID;
+const mutationId = process.env.MUTATION_ID;
+assert.ok(owner && id && mutationId, 'set OWNER_DEVICE_ID, ASSIGNMENT_ID, MUTATION_ID');
+const ws = new WebSocket(url);
+await new Promise((resolve, reject) => {
+  const timer = setTimeout(() => { ws.close(); reject(Error('connect timeout')); }, 12_000);
+  ws.onopen = () => { clearTimeout(timer); resolve(); };
+  ws.onerror = (error) => { clearTimeout(timer); reject(error); };
+});
+let seq = 0;
+const pending = new Map();
+ws.onmessage = ({ data }) => {
+  const reply = JSON.parse(data);
+  const waiter = pending.get(reply.id);
+  if (!waiter) return;
+  clearTimeout(waiter.timer);
+  pending.delete(reply.id);
+  reply.err ? waiter.reject(Error(reply.err)) : waiter.resolve(reply.ok);
+};
+function call(method, params = {}) {
+  return new Promise((resolve, reject) => {
+    const requestId = ++seq;
+    const timer = setTimeout(() => reject(Error(`${method} timeout`)), 12_000);
+    pending.set(requestId, { resolve, reject, timer });
+    ws.send(JSON.stringify({ id: requestId, method, params }));
+  });
+}
+try {
+  const info = await call('EngineInfo');
+  assert.ok(info.capabilities.includes('assignment-record-v1'));
+  assert.notEqual(info.deviceId, owner, 'Mac caller must differ from assignment owner');
+  if (process.env.WRITE === '1') {
+    const request = { id, objective: 'foundation compatibility acceptance', allowedActions: [], mutationId, targetDeviceId: owner };
+    const created = await call('CreateAssignment', request);
+    assert.equal(created.ownerDeviceId, owner);
+    assert.deepEqual(await call('CreateAssignment', request), created, 'same mutation replays idempotently');
+    await assert.rejects(call('CreateAssignment', { ...request, objective: 'conflicting payload' }));
+  }
+  const record = await call('GetAssignment', { id, targetDeviceId: owner });
+  assert.equal(record?.id, id);
+  assert.equal(record.ownerDeviceId, owner);
+  assert.equal(record.revision, 1);
+  assert.equal(record.objective, 'foundation compatibility acceptance');
+  const history = await call('ListAssignmentHistory', { id, targetDeviceId: owner });
+  assert.deepEqual(history, [record]);
+  assert.equal(await call('GetAssignment', { id }), null, 'no local substitute');
+  console.log('ROUTED_ASSIGNMENT_PASS', JSON.stringify({ caller: info.deviceId, record, history, write: process.env.WRITE === '1' }));
+} finally {
+  ws.close();
+}
+```
+
+1. Before any service action, record UTC time, source commit/tree, Mac test-app executable SHA-256, isolated profile path, caller/owner device IDs, RPC URL, selected assignment/mutation IDs, and `systemctl --user status zeron-fork-owner`. Confirm its unit/process belongs to the isolated test owner described in `/home/nyaptor/.local/share/zeron-fork-services/README.md`. If identity does not match, stop.
+2. Run initial acceptance from the Mac using `WRITE=1 node $JCODE_SCRATCH_DIR/foundation-rpc-check.mjs` with the four IDs/endpoints configured. Save output and exit code as the pre-restart acknowledgement and second-device read/history baseline. This only creates a test assignment in the isolated owner profile.
+3. Restart only that isolated owner, not the Mac app, relay, tunnel, or original application: `systemctl --user restart zeron-fork-owner`. Capture unit status before and after. This owner restart is authorized only within a separately approved test run.
+4. Run `node $JCODE_SCRATCH_DIR/foundation-rpc-check.mjs` with the same IDs, without `WRITE=1`. Pass C01 only when the second-device record/history match the acknowledged baseline and owner/profile remain unchanged. Save output and exit code as a **new native run**.
+5. For C04, open an ordinary direct session in the isolated Mac test app without creating/selecting an assignment. Record its session ID and confirm no assignment/workflow was created or launched. Do not invoke the original app or send a prompt to an unapproved live provider. If no existing UI route can establish this safely, record C04 as blocked, not passed. RPC assignment checks alone do not prove direct-session UI behavior.
+6. Record exact commands/actions, timestamps, process/service identities, artifact hashes, RPC outcomes, test counts and exit codes. Redact tokens and user content. Keep new evidence separate from Cargo results and existing runtime logs.
+
+This tests private local deployment only, not WorkOS or public hosting. A shared version string is not binary identity. The recipe itself does not operate a service; the separately approved test run performs the explicitly listed isolated owner restart.
+
+## CI heading required by planning validator
+
+## CI phase after every implementation iteration
+
+This unit authorizes no product implementation iteration. The block below validates planning structure and whitespace only. It does not establish feature behavior. Future implementation work must run the tests above and gather separate native evidence, recording selected test counts, source tree, installed binary hashes, environment, and remaining blocks.
+
 ```bash
 python3 openspec/changes/prd-execution-map/validate.py
 git diff --check
 ```
-Expected: complete coverage/acyclic dependency/path checks pass, exit0; whitespace check exit0. This validates planning artifacts, not product functionality.
-
-## Required implementation acceptance after refinement
-- C01: Owner restarts after acknowledged assignment: native second-device read/history match and owner unchanged.
-- C02: Old owner lacks capability: assignment rejected explicitly, ordinary session unaffected.
-- C03: Successful null response completes RPC rather than hanging.
-- C04: Direct session opens without an assignment or hidden workflow launch.
-
-## CI phase after every implementation iteration
-- [ ] Run exact refined feature tests and core/affected-platform CI from `../prd-execution-map/design.md`. Verify at least one test actually selected; preserve failing evidence. No next iteration/round promotion while required checks fail or are missing.
-- [ ] Run real acceptance: Existing native suites plus installed Mac/homelab test evidence reconciled to commit/binary identity; lifecycle caveats explicit.
-- [ ] Update this tasks.md with exact tested commit/tree, commands, counts, exit codes, evidence class, native environment and remaining blocks. Commit scoped files only, then CI on that integrated commit before downstream promotion.
 
 ## Rollback
-Use isolated data and preserve installed original app; service tests stop only owned fixtures. Do not reboot user machines without interruption authorization.
+
+Automated rollback testing uses isolated temporary SQLite stores and injected triggers. For native acceptance, preserve the original application and data. Only the isolated owner unit may be restarted, and only in the separately approved run. If state is unexpected, stop and preserve logs; do not delete assignment data, reset profiles, modify the original application, or reboot user machines.

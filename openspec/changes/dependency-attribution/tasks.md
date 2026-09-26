@@ -23,21 +23,65 @@ PY
 Expected: one line per anchor, exit0. Missing path means re-discover with graft and correct this contract; do not create a dummy file. Read `graft/INDEX.md` then matching cards. Use `graft ask "Dependency and asset attribution for fork distribution" --source` only if the CLI is already available; graph files are sufficient.
 - [ ] In design.md, cite exact symbols/current line spans for the input, authority, persistence and side-effect paths. For each C-scenario record whether current behavior is observed, contradicted or not yet tested. Do not equate missing grep hit with absence proof.
 
-## D2. Freeze one implementable contract
-- [ ] Record exact DTO fields/enums, state transitions, error classes and owning API boundaries in design.md. For a research-only unit, record actual provider/version observations and explicitly blocked decisions instead of inventing DTOs.
-- [ ] Assign each C-scenario one exact native test path/name and its observable assertion. List existing files modified versus new files created, role of each file and shared-file conflicts with other changes.
-- [ ] Enumerate crash points, concurrent callers, stale revisions, unauthorized caller, unavailable owner/provider and compatibility with older readers. Explain rollback using this design's explicit rule.
-- [ ] Replace D-only tasks with atomic failing-test/run-red/minimal-code/run-green/commit steps using actual complete code and exact commands. Do not write a second plan file or mark implementation-ready while this step is incomplete.
+## D2. Execute exact inventory, no guessed licenses
+**Files changed:** only `design.md` and this `tasks.md` until the inventory establishes an exact packaging change. **Read:** pinned lockfiles and actual dependency license files. No dependency upgrade or installation authorized by this step.
 
-## D3. Review and admission
-- [ ] Self-review every PRD clause/C-scenario, all prohibited interpretations, type names across steps, reverse dependencies and rollback. An independent reviewer must challenge authority boundaries and whether the tests can pass without the intended behavior.
-- [ ] Get the named change's written approval/readiness decision recorded in proposal.md. A changed public contract returns to review; do not treat a prior broad deployment mandate as approval for new product architecture.
-- [ ] Run the planning validator from repository root:
+- [ ] Run this read-only locked-component inventory from repository root. Python3.11+ is required for stdlib tomllib. It prints actual pinned identities and missing license metadata; it does not interpret legal compatibility.
+```bash
+python3 - <<'PYCODE'
+import json, tomllib
+from pathlib import Path
+cargo = tomllib.loads(Path('Cargo.lock').read_text())['package']
+npm = json.loads(Path('edge/package-lock.json').read_text())['packages']
+for package in cargo:
+    print(json.dumps({'ecosystem':'cargo','name':package['name'],'version':package['version'],'source':package.get('source','workspace'),'license_status':'unresolved-until-source-read'}))
+for path, package in npm.items():
+    if path:
+        print(json.dumps({'ecosystem':'npm','path':path,'version':package.get('version'),'license':package.get('license'),'dev':package.get('dev',False)}))
+for path in sorted(Path('crates/ui/assets/fonts/licenses').iterdir()):
+    assert path.is_file(), path
+    print(json.dumps({'ecosystem':'asset','path':str(path),'bytes':path.stat().st_size}))
+PYCODE
+```
+Expected: nonempty pinned Cargo/npm inventory and both font notice files. Do not copy all transitive build/dev dependencies into a statement that they are shipped; classify linked/shipped/tool-only using actual artifact/build metadata.
+
+- [ ] Run `cargo metadata --locked --offline --format-version 1` and inspect package license/license_file/manifest_path for exact locked sources. If offline cache is absent, record missing source, not inferred MIT; authorized public retrieval can be a separate read-only step. Resolve each selected artifact's native libraries, pinned git dependencies and assets in design.md using columns below.
+
+| Exact package/asset + version/hash | Shipped role | License source path/URL + revision | Required notice text/path | Actual artifact member | Evidence class | Disposition |
+|---|---|---|---|---|---|---|
+
+Allowed disposition values: `verified-notice-present`, `missing-notice`, `unresolved-terms`, `not-shipped-with-evidence`. Empty rows are not evidence. Root license, registry metadata and a successful build are insufficient by themselves. Read actual source license text; retain it unchanged.
+
+## D3. Verify notice enforcement with actual artifacts
+- [ ] Set `PACKAGE_ROOT` to an extracted **existing** Linux package or Mac app `Contents/Resources`. Do not run release/deploy workflows to get an artifact. The existing packaging scripts put notices under `licenses/fonts`. If an artifact is unavailable, this step blocks distribution acceptance rather than fabricating one.
+- [ ] Run this exact check against that real artifact:
+```bash
+python3 - <<'PYCODE'
+import os
+from pathlib import Path
+root = Path(os.environ['PACKAGE_ROOT'])
+source = Path('crates/ui/assets/fonts/licenses')
+for path in source.iterdir():
+    if path.is_file():
+        actual = root / 'licenses/fonts' / path.name
+        assert actual.is_file(), f'missing packaged notice: {actual}'
+        assert actual.read_bytes() == path.read_bytes(), f'changed notice: {actual}'
+print('PASS: packaged font notices match source bytes; other inventory rows still require their own evidence')
+PYCODE
+```
+Expected exit0 only when every current font notice is actually present and byte-identical. This assertion deliberately does not claim complete dependency licensing.
+- [ ] Prove failure behavior without modifying the artifact: copy just its `licenses` directory into a new directory under `$JCODE_SCRATCH_DIR`, delete one copied font notice, set PACKAGE_ROOT to that copy and rerun the same block. Expected nonzero with `missing packaged notice`. Restore PACKAGE_ROOT to the real artifact and require green. This is a synthetic negative control, not product acceptance.
+- [ ] In design.md map C01 to exact lockfile/artifact hash drift, C02 to missing-notice negative control, C03 to an unresolved inventory row that blocks promotion. No legal conclusion may be guessed by an agent. List exactly which sources remain unavailable.
+
+## D4. Admit only a concretely demonstrated packaging repair
+- [ ] If all required notices are present, make no packaging code change. Commit only verified inventory/results in this change after review.
+- [ ] If missing, record the exact existing notice source and target artifact member, then author the literal copy/install command and a runnable failing artifact test in this tasks.md before implementing. Never synthesize a license. Unknown legal terms remain blocked for human judgment; do not solve by removing attribution or disabling the check.
+- [ ] Validate planning artifacts and record command results:
 ```bash
 python3 openspec/changes/prd-execution-map/validate.py
 git diff --check
 ```
-Expected: complete coverage/acyclic dependency/path checks pass, exit0; whitespace check exit0. This validates planning artifacts, not product functionality.
+Expected exit0. Review actual package contents against all selected inventory rows before any distribution claim; record tested artifact identity and source commit in this tasks.md.
 
 ## Required implementation acceptance after refinement
 - C01: Pinned dependency revision changes: attribution evidence invalidated for that package.

@@ -1,53 +1,140 @@
 # Jcode, Herdr and observer capability research execution contract
 
-**Goal:** Produce versioned evidence for Jcode environment-local swarm integration and Herdr attachment, and separately SystemOne observer, Jev, Laya and empryo identity/capabilities.
-**Architecture:** Existing Rust engine/proto/RPC/profile storage and native clients are the starting point. Freeze interfaces from observed source; no speculative provider API or generic framework.
-**Tech stack:** Rust/Tokio/Serde/SQLite; GPUI/Swift/Worker TypeScript only if the approved surface requires them.
-**Status:** executable discovery/refinement steps; product implementation NOT READY.
-**Dependencies:** `ci-promotion-gates`. Read-only research can proceed without using unimplemented prerequisite APIs; implementation waits for all prerequisite CI promotion records.
+**Goal:** Produce bounded, versioned research records for the subjects listed in design.md without implementing or selecting interfaces.
+**Architecture:** Inspect local source read-only, then consult official public documentation for separately pinned product identities. Keep source facts, documentation claims, and any separately authorized local observations distinct.
+**Status:** Research planning only. No product implementation readiness claim.
+**Scope:** For this research, record evidence in this change's canonical `design.md` and modify only this change's `design.md` and `tasks.md`. Do not install, upgrade, configure, authenticate, call provider APIs, probe private endpoints, or spend funds.
 
-## D1. Recover authority and source (one bounded read per listed anchor)
-**Files:** design.md and tasks.md in this change; read-only source anchors in design.md.
-- [ ] Read PRD clauses ZF-15, ZF-09, ZF-19 and every C-scenario in `specs/integration-harness-observer-research/spec.md`; state excluded sibling behavior in design.md.
-- [ ] From repository root, verify listed anchors exist:
+## R1. Recover authority and source
+1. Read `../../../docs/fork-prd.md`, `../prd-execution-map/design.md`, `specs/integration-harness-observer-research/spec.md`, and this change's `design.md`. Extract applicable ZF-15, ZF-09, ZF-19 clauses, C01-C03, and Unknown prerequisite scenario. Record exclusions and unresolved questions in the decision table in design.md.
+2. Treat `crates/harness/src/lib.rs`, `crates/engine/src/registry.rs`, `crates/engine/src/sessions.rs`, `docs/research/harness.md`, and `docs/fork-prd.md` as existing read-only anchors. No other source paths are in scope.
+3. From repository root, inspect graph context and exact local anchors using only read operations:
 ```bash
-python3 - <<'PY'
-from pathlib import Path
-paths = ['crates/harness/src/lib.rs', 'crates/engine/src/registry.rs', 'crates/engine/src/sessions.rs', 'docs/research/harness.md', 'docs/fork-prd.md']
-for name in paths:
-    p = Path(name)
-    assert p.is_file(), name
-    print(name, len(p.read_text().splitlines()), "lines")
-PY
+graft ask "harness capability launch lifecycle observer registry sessions" --source
+graft ask "Jcode Herdr SystemOne observer Jev Laya empryo research" --source
+rg -n "trait Harness|enum HarnessId|struct Harness|fn .*launch|fn .*stop|observer|registry|session" crates/harness/src/lib.rs crates/engine/src/registry.rs crates/engine/src/sessions.rs docs/research/harness.md docs/fork-prd.md
 ```
-Expected: one line per anchor, exit0. Missing path means re-discover with graft and correct this contract; do not create a dummy file. Read `graft/INDEX.md` then matching cards. Use `graft ask "Jcode, Herdr and observer capability research" --source` only if the CLI is already available; graph files are sufficient.
-- [ ] In design.md, cite exact symbols/current line spans for the input, authority, persistence and side-effect paths. For each C-scenario record whether current behavior is observed, contradicted or not yet tested. Do not equate missing grep hit with absence proof.
-
-## D2. Freeze one implementable contract
-- [ ] Record exact DTO fields/enums, state transitions, error classes and owning API boundaries in design.md. For a research-only unit, record actual provider/version observations and explicitly blocked decisions instead of inventing DTOs.
-- [ ] Assign each C-scenario one exact native test path/name and its observable assertion. List existing files modified versus new files created, role of each file and shared-file conflicts with other changes.
-- [ ] Enumerate crash points, concurrent callers, stale revisions, unauthorized caller, unavailable owner/provider and compatibility with older readers. Explain rollback using this design's explicit rule.
-- [ ] Replace D-only tasks with atomic failing-test/run-red/minimal-code/run-green/commit steps using actual complete code and exact commands. Do not write a second plan file or mark implementation-ready while this step is incomplete.
-
-## D3. Review and admission
-- [ ] Self-review every PRD clause/C-scenario, all prohibited interpretations, type names across steps, reverse dependencies and rollback. An independent reviewer must challenge authority boundaries and whether the tests can pass without the intended behavior.
-- [ ] Get the named change's written approval/readiness decision recorded in proposal.md. A changed public contract returns to review; do not treat a prior broad deployment mandate as approval for new product architecture.
-- [ ] Run the planning validator from repository root:
-```bash
-python3 openspec/changes/prd-execution-map/validate.py
-git diff --check
-```
-Expected: complete coverage/acyclic dependency/path checks pass, exit0; whitespace check exit0. This validates planning artifacts, not product functionality.
+Expected: graft returns relevant source spans or explicitly no useful indexed match; `rg` prints matches or exit 1 for no matches. Exit 1 is not evidence of absence. Follow a relevant source span by reading only that range. Do not dump environment variables, process arguments containing secrets, or local configuration values.
+4. Query official public docs for each subject individually with the exact design.md questions. Search results are discovery only. Open the official publisher/project documentation page, capture canonical URL, title, section, published/version date if shown, retrieval UTC date, and verbatim short supporting excerpt. No undocumented facts may be inferred. An unresolved identity stays `unknown`; do not silently normalize empryo spelling.
+5. Fill one evidence row per claim using the exact schema in design.md. Set `evidence_kind=local_source` for repository facts and `official_doc` for public docs. Reserve `local_observation` for an explicitly authorized, non-network, read-only local command observation; none is authorized merely by this plan. Set `state=blocked` when authorization or a required source is missing, and `unknown` when evidence search is bounded but inconclusive.
 
 ## Required implementation acceptance after refinement
-- C01: A tool is installed but no stop proof/API exists: capability remains blocked.
-- C02: Documentation and observed version disagree: record mismatch and do not guess request shape.
-- C03: Jcode preferred but unavailable: ordinary configured engineer stays unchanged.
+- A tool is installed but no stop proof/API exists: capability remains blocked.
+- Documentation and observed version disagree: record mismatch and do not guess request shape.
+- Jcode preferred but unavailable: ordinary configured engineer stays unchanged.
+- Unknown prerequisite: affected work is `blocked` with reason, not reported successful or rerouted.
+
+## R2. Make bounded evidence and rejection decisions
+1. Complete separate subject rows for Jcode local swarm, Herdr, SystemOne observer, Jev, Laya, and empryo. For each capture identity/version, native ID, documented start/status/stop proof, configuration, usage, auth/data boundary, isolation, and unknowns. Do not collapse identities.
+2. Run through C01-C03 and the unknown-prerequisite case. For each record `scenario_id`, `state` (`verified`, `contradicted`, `unknown`, `blocked`), `evidence_refs`, `reason`, and `remaining_question`. Preserve these exact required acceptance sentences:
+   - A tool is installed but no stop proof/API exists: capability remains blocked.
+   - Documentation and observed version disagree: record mismatch and do not guess request shape.
+   - Jcode preferred but unavailable: ordinary configured engineer stays unchanged.
+   C01 cannot be accepted without stop proof. C02 must preserve the mismatch and must not invent a request shape. C03 must state whether the configured engineer remains unchanged when Jcode is unavailable.
+3. Create a child adapter decision record only when enough evidence exists. Use all fields in design.md; put `unknown` in unsupported fields. `decision_state=candidate` means only eligible for a separately reviewed follow-up, not selected or implementable. Otherwise use `blocked`, `rejected`, or `needs_review`. Never produce fake provider responses.
+4. Reject/block any candidate meeting design.md rejection criteria. No API calls, private access, credentials, process-control actions, profile/config changes, installation, upgrades, or external probes are part of this task.
+
+## R3. Review and validation
+1. Check every applicable PRD/spec clause and scenario against a row; verify all docs claims cite official public pages and source claims cite current exact paths/spans. Keep docs separate from live observations. Check all evidence rows include every required field and allowed state/kind, and each child record includes every required field.
+2. Persist completed evidence, scenario rows, and child adapter records in the Evidence register section of this canonical `design.md`; do not leave the only research result in a temporary JSON file.
+3. Run the planned standard-library checker below from repository root against a temporary JSON export of the Evidence register. It validates record shape, not factual truth. Keep the canonical design.md register authoritative.
+4. Run `python3 openspec/changes/prd-execution-map/validate.py` and `git diff --check`. Expected: validator exit 0; whitespace check exit 0. These do not validate provider functionality.
+
+### Planned stdlib evidence-schema checker and self-tests
+The following complete code is for a temporary `check_evidence.py` during research, not a product file. It validates required evidence fields and enumerated values, nonempty rows, and unique claim IDs. Save exactly as shown only in a temporary directory, then run `python3 check_evidence.py evidence.json`; its self-tests run with `python3 check_evidence.py --self-test`.
+
+```python
+import json
+import sys
+import unittest
+from pathlib import Path
+
+FIELDS = {
+    "claim_id", "subject", "claim", "state", "evidence_kind",
+    "source_or_command", "version_or_commit", "observed_at_utc",
+    "result_or_excerpt", "scope", "limitations", "reviewer",
+}
+STATES = {"verified", "contradicted", "unknown", "blocked"}
+KINDS = {"official_doc", "local_source", "local_observation"}
+
+
+def validate(rows):
+    errors = []
+    if not isinstance(rows, list):
+        return ["top-level JSON must be a list"]
+    if not rows:
+        return ["evidence list must not be empty"]
+    seen_claim_ids = set()
+    for i, row in enumerate(rows):
+        if not isinstance(row, dict):
+            errors.append(f"row {i}: must be an object")
+            continue
+        missing = FIELDS - row.keys()
+        extra = row.keys() - FIELDS
+        if missing:
+            errors.append(f"row {i}: missing {', '.join(sorted(missing))}")
+        if extra:
+            errors.append(f"row {i}: unexpected {', '.join(sorted(extra))}")
+        if row.get("state") not in STATES:
+            errors.append(f"row {i}: invalid state")
+        if row.get("evidence_kind") not in KINDS:
+            errors.append(f"row {i}: invalid evidence_kind")
+        claim_id = row.get("claim_id")
+        if isinstance(claim_id, str) and claim_id.strip():
+            if claim_id in seen_claim_ids:
+                errors.append(f"row {i}: duplicate claim_id {claim_id}")
+            seen_claim_ids.add(claim_id)
+        for key in FIELDS & row.keys():
+            if not isinstance(row[key], str) or not row[key].strip():
+                errors.append(f"row {i}: {key} must be a non-empty string")
+    return errors
+
+
+class EvidenceSchemaTests(unittest.TestCase):
+    def test_complete_row_passes(self):
+        row = {key: "value" for key in FIELDS}
+        row.update(state="unknown", evidence_kind="official_doc")
+        self.assertEqual(validate([row]), [])
+
+    def test_missing_field_fails(self):
+        row = {key: "value" for key in FIELDS if key != "reviewer"}
+        row.update(state="blocked", evidence_kind="local_source")
+        self.assertIn("row 0: missing reviewer", validate([row]))
+
+    def test_invalid_state_fails(self):
+        row = {key: "value" for key in FIELDS}
+        row.update(state="maybe", evidence_kind="local_observation")
+        self.assertIn("row 0: invalid state", validate([row]))
+
+    def test_non_object_fails(self):
+        self.assertIn("row 0: must be an object", validate([None]))
+
+    def test_empty_list_fails(self):
+        self.assertIn("evidence list must not be empty", validate([]))
+
+    def test_duplicate_claim_id_fails(self):
+        row = {key: "value" for key in FIELDS}
+        row.update(claim_id="same", state="unknown", evidence_kind="official_doc")
+        self.assertIn("row 1: duplicate claim_id same", validate([row, row]))
+
+
+if __name__ == "__main__":
+    if len(sys.argv) == 2 and sys.argv[1] == "--self-test":
+        unittest.main(argv=[sys.argv[0]])
+    elif len(sys.argv) == 2:
+        errors = validate(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")))
+        print("\n".join(errors) if errors else "valid evidence schema")
+        raise SystemExit(bool(errors))
+    else:
+        raise SystemExit("usage: check_evidence.py EVIDENCE.json | --self-test")
+```
 
 ## CI phase after every implementation iteration
-- [ ] Run exact refined feature tests and core/affected-platform CI from `../prd-execution-map/design.md`. Verify at least one test actually selected; preserve failing evidence. No next iteration/round promotion while required checks fail or are missing.
-- [ ] Run real acceptance: Pinned official source/API references plus read-only local version/capability probes when authorized; output exact adapter contracts or explicit blocked decisions.
-- [ ] Update this tasks.md with exact tested commit/tree, commands, counts, exit codes, evidence class, native environment and remaining blocks. Commit scoped files only, then CI on that integrated commit before downstream promotion.
+
+Research itself has no implementation iterations. If a separately approved implementation follows, run its exact refined tests and required CI, then record command, result, evidence class, and remaining blocks. This required heading does not authorize implementation.
+
+## Completion boundary
+A complete research pass means schemas are filled with cited evidence or explicit `unknown`/`blocked` outcomes and the planning checks pass. It does not mean a provider was selected, an adapter API was frozen, or all future adapters can be implemented. External/native acceptance unavailable means blocked, not complete.
 
 ## Rollback
-Research changes only canonical design/spec/tasks. No installing/upgrading providers, changing defaults, credentials or spend without separate scoped authority.
+No product/provider state changes are allowed. Discard temporary checker/evidence files after validation unless separately authorized. Only the two canonical files listed in scope may be edited for this change.
