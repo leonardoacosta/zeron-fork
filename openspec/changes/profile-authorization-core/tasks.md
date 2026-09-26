@@ -157,12 +157,17 @@ impl WorkAuthorizer {
         }
         let mut state = self.state.write().map_err(|_| Denial::PolicyUnavailable)?;
         let key = (principal, binding.profile_id.clone());
-        if state
-            .policies
-            .get(&key)
-            .is_some_and(|p| revision <= p.revision)
-        {
-            return Err(Denial::StalePolicy);
+        if let Some(current) = state.policies.get(&key) {
+            if revision < current.revision {
+                return Err(Denial::StalePolicy);
+            }
+            if revision == current.revision {
+                return if current.grants == grants {
+                    Ok(())
+                } else {
+                    Err(Denial::StalePolicy)
+                };
+            }
         }
         state.policies.insert(key, Policy { revision, grants });
         Ok(())
@@ -506,6 +511,14 @@ mod tests {
             Err(Denial::PolicyUnavailable)
         );
     }
+
+    #[test]
+    fn same_revision_publication_is_idempotent_only_for_identical_grants() {
+        let (authorizer, principal, binding, resource, operation) = fixture();
+        let grant = Grant { operation, resource };
+        assert_eq!(authorizer.replace_policy(principal.clone(), &binding, 8, vec![grant]), Ok(()));
+        assert_eq!(authorizer.replace_policy(principal, &binding, 8, Vec::new()), Err(Denial::StalePolicy));
+    }
 }
 ```
 - [ ] Behavioral negative control in scratch: remove policy revision comparison in `with_authorized_effect`; revoked-permit test must fail with closure wrongly invoked. Restore. Lock poison must return PolicyUnavailable, not panic or recover unsafe policy.
@@ -774,6 +787,142 @@ CREATE TABLE policy_mutations(principal_org TEXT NOT NULL,principal_user TEXT NO
 "#;
 pub struct DurablePolicyStore {
     conn: Mutex<Connection>,
+}
+
+/// Private owner for the active evaluator and durable source of truth. The
+/// coordinator gate is held across persistence, snapshot reload, publication,
+/// admission, and the synchronous effect closure. This only serializes one
+/// process; it does not stop already-started asynchronous work.
+pub struct PolicyCoordinator {
+    gate: Mutex<CoordinatorState>,
+}
+struct CoordinatorState {
+    store: DurablePolicyStore,
+    authorizer: crate::work_authorization::WorkAuthorizer,
+    unavailable: bool,
+    #[cfg(test)]
+    fail_next_publication: bool,
+}
+impl PolicyCoordinator {
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, PolicyStoreError> {
+        let store = DurablePolicyStore::open(path)?;
+        Ok(Self {
+            gate: Mutex::new(CoordinatorState {
+                store,
+                authorizer: crate::work_authorization::WorkAuthorizer::new(),
+                unavailable: false,
+                #[cfg(test)]
+                fail_next_publication: false,
+            }),
+        })
+    }
+    fn state(&self) -> Result<MutexGuard<'_, CoordinatorState>, PolicyStoreError> {
+        self.gate
+            .lock()
+            .map_err(|_: PoisonError<_>| PolicyStoreError::Poisoned)
+    }
+    fn publish_latest(
+        state: &mut CoordinatorState,
+        principal: &Principal,
+        binding: &WorkProfileBinding,
+    ) -> Result<(), PolicyStoreError> {
+        let snapshot = state.store.load(principal, binding)?;
+        let Some(snapshot) = snapshot else {
+            state.unavailable = true;
+            return Err(PolicyStoreError::Corrupt(
+                "committed policy snapshot disappeared".into(),
+            ));
+        };
+        #[cfg(test)]
+        if std::mem::take(&mut state.fail_next_publication) {
+            state.unavailable = true;
+            return Err(PolicyStoreError::Corrupt(
+                "injected evaluator publication failure".into(),
+            ));
+        }
+        if state
+            .authorizer
+            .replace_policy(
+                principal.clone(),
+                binding,
+                snapshot.policy_revision.get(),
+                snapshot.grants,
+            )
+            .is_err()
+        {
+            state.unavailable = true;
+            return Err(PolicyStoreError::Corrupt(
+                "policy publication failed after durable commit".into(),
+            ));
+        }
+        state.unavailable = false;
+        Ok(())
+    }
+    pub fn replace(
+        &self,
+        replacement: &PolicyReplacement,
+    ) -> Result<WorkProfileRevision, PolicyStoreError> {
+        let mut state = self.state()?;
+        if state.unavailable {
+            return Err(PolicyStoreError::Corrupt(
+                "coordinator requires recovery".into(),
+            ));
+        }
+        // Replay also reloads the latest row. Never publish the historical
+        // receipt's revision/grants over a later committed policy.
+        let result = state.store.replace(replacement)?;
+        if let Err(error) =
+            Self::publish_latest(&mut state, &replacement.principal, &replacement.binding)
+        {
+            state.unavailable = true;
+            return Err(error);
+        }
+        Ok(result)
+    }
+    pub fn recover(
+        &self,
+        principal: &Principal,
+        binding: &WorkProfileBinding,
+    ) -> Result<(), PolicyStoreError> {
+        let mut state = self.state()?;
+        state.unavailable = true;
+        Self::publish_latest(&mut state, principal, binding)
+    }
+    #[cfg(test)]
+    fn fail_next_publication(&self) {
+        self.gate.lock().unwrap().fail_next_publication = true;
+    }
+    pub fn with_admitted_effect<T>(
+        &self,
+        request: &crate::work_authorization::Request,
+        effect: impl FnOnce() -> T,
+    ) -> Result<T, crate::work_authorization::Denial> {
+        let state = self
+            .gate
+            .lock()
+            .map_err(|_| crate::work_authorization::Denial::PolicyUnavailable)?;
+        if state.unavailable {
+            return Err(crate::work_authorization::Denial::PolicyUnavailable);
+        }
+        let permit = state.authorizer.authorize(request)?;
+        let binding = match &request.selection {
+            zeron_proto::WorkProfileSelection::Named(binding) => binding,
+            zeron_proto::WorkProfileSelection::UnboundLegacy => {
+                return Err(crate::work_authorization::Denial::UnboundLegacy);
+            }
+        };
+        let resource = request
+            .resource
+            .as_ref()
+            .ok_or(crate::work_authorization::Denial::ResourceUnresolved)?;
+        state.authorizer.with_authorized_effect(
+            permit,
+            binding,
+            &request.operation,
+            resource,
+            effect,
+        )
+    }
 }
 impl DurablePolicyStore {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, PolicyStoreError> {
@@ -1415,9 +1564,156 @@ mod tests {
             Err(PolicyStoreError::Corrupt(_))
         ));
     }
+
+    #[test]
+    fn coordinator_serializes_admission_with_durable_revoke() {
+        use crate::work_authorization::{Denial, Request};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::{Arc, Barrier};
+
+        let d = tempdir().unwrap();
+        let coordinator =
+            Arc::new(PolicyCoordinator::open(d.path().join("coordinator.db")).unwrap());
+        let mut create = replacement(None, 1, "create");
+        coordinator.replace(&create).unwrap();
+        let request = Request {
+            selection: zeron_proto::WorkProfileSelection::Named(b()),
+            principal: p(),
+            expected_policy_revision: 1,
+            operation: Operation::RunSession,
+            resource: Some(grant().resource),
+            migration_required: false,
+            unresolved: false,
+        };
+        let barrier = Arc::new(Barrier::new(3));
+        let admission_barrier = barrier.clone();
+        let admission_coordinator = coordinator.clone();
+        let admission_request = request.clone();
+        let effect_count = Arc::new(AtomicBool::new(false));
+        let effect_count_worker = effect_count.clone();
+        let admission = std::thread::Builder::new()
+            .spawn(move || {
+                admission_barrier.wait();
+                admission_coordinator.with_admitted_effect(&admission_request, || {
+                    effect_count_worker.store(true, Ordering::SeqCst);
+                })
+            })
+            .unwrap();
+
+        let revoke_coordinator = coordinator.clone();
+        let revoke_barrier = barrier.clone();
+        let revoker = std::thread::Builder::new()
+            .spawn(move || {
+                revoke_barrier.wait();
+                create.grants.clear();
+                create.expected_revision = Some(WorkProfileRevision::try_from(1).unwrap());
+                create.new_revision = WorkProfileRevision::try_from(2).unwrap();
+                create.operation_id = "revoke".into();
+                revoke_coordinator.replace(&create)
+            })
+            .unwrap();
+        barrier.wait();
+        let admitted = admission.join().unwrap();
+        let revoked = revoker.join().unwrap();
+        assert!(revoked.is_ok());
+        assert!(
+            admitted.is_ok()
+                || matches!(admitted, Err(Denial::ResourceDenied | Denial::StalePolicy))
+        );
+        if admitted.is_err() {
+            assert!(!effect_count.load(Ordering::SeqCst));
+        }
+        let effects_before_final_check = effect_count.load(Ordering::SeqCst);
+        let after = coordinator.with_admitted_effect(&request, || {
+            effect_count.store(true, Ordering::SeqCst);
+        });
+        assert!(matches!(
+            after,
+            Err(Denial::ResourceDenied | Denial::StalePolicy)
+        ));
+        assert_eq!(
+            effect_count.load(Ordering::SeqCst),
+            effects_before_final_check
+        );
+    }
+
+    #[test]
+    fn replay_of_old_receipt_publishes_latest_durable_snapshot() {
+        use crate::work_authorization::{Denial, Request};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let d = tempdir().unwrap();
+        let coordinator = PolicyCoordinator::open(d.path().join("replay.db")).unwrap();
+        let create = replacement(None, 1, "create");
+        coordinator.replace(&create).unwrap();
+        let mut revoke = replacement(Some(1), 2, "revoke");
+        revoke.grants.clear();
+        coordinator.replace(&revoke).unwrap();
+        assert_eq!(coordinator.replace(&create).unwrap().get(), 1); // exact replay receipt
+        let request = Request {
+            selection: zeron_proto::WorkProfileSelection::Named(b()),
+            principal: p(),
+            expected_policy_revision: 2,
+            operation: Operation::RunSession,
+            resource: Some(grant().resource),
+            migration_required: false,
+            unresolved: false,
+        };
+        let ran = AtomicBool::new(false);
+        assert_eq!(
+            coordinator.with_admitted_effect(&request, || ran.store(true, Ordering::SeqCst)),
+            Err(Denial::ResourceDenied)
+        );
+        assert!(!ran.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn durable_commit_publish_failure_fails_closed_then_recovers_latest_row() {
+        use crate::work_authorization::{Denial, Request};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let d = tempdir().unwrap();
+        let coordinator = PolicyCoordinator::open(d.path().join("publish-failure.db")).unwrap();
+        let create = replacement(None, 1, "create");
+        coordinator.replace(&create).unwrap();
+        let request = Request {
+            selection: zeron_proto::WorkProfileSelection::Named(b()),
+            principal: p(),
+            expected_policy_revision: 1,
+            operation: Operation::RunSession,
+            resource: Some(grant().resource),
+            migration_required: false,
+            unresolved: false,
+        };
+        let first_effect = AtomicBool::new(false);
+        coordinator
+            .with_admitted_effect(&request, || first_effect.store(true, Ordering::SeqCst))
+            .unwrap();
+        assert!(first_effect.load(Ordering::SeqCst));
+
+        let mut revoke = replacement(Some(1), 2, "revoke");
+        revoke.grants.clear();
+        coordinator.fail_next_publication();
+        assert!(matches!(
+            coordinator.replace(&revoke),
+            Err(PolicyStoreError::Corrupt(_))
+        ));
+        let ran = AtomicBool::new(false);
+        assert_eq!(
+            coordinator.with_admitted_effect(&request, || ran.store(true, Ordering::SeqCst)),
+            Err(Denial::PolicyUnavailable),
+        );
+        // Durable revocation committed despite publication failure. The old
+        // allow stays unavailable until recovery reloads the latest row.
+        coordinator.recover(&p(), &b()).unwrap();
+        assert!(matches!(
+            coordinator.with_admitted_effect(&request, || ran.store(true, Ordering::SeqCst)),
+            Err(Denial::ResourceDenied | Denial::StalePolicy)
+        ));
+        assert!(!ran.load(Ordering::SeqCst));
+    }
 }
+
 ```
-- [ ] Run `cargo test --locked -p zeron-engine --lib work_policy_store::tests`, require10 tests. Run `work_authorization::tests` separately, require9. Do not count the catalog/wire21-test scratch run as19 evaluator tests: it contains4 wire+7 catalog+10 durable-policy tests, not the separate9 evaluator tests.
+- [ ] Run `cargo test --locked -p zeron-engine --lib work_policy_store::tests`, require13 tests. Run `work_authorization::tests` separately, require10. Do not count the catalog/wire21-test scratch run as19 evaluator tests: it contains4 wire+7 catalog+10 durable-policy tests, not the separate9 evaluator tests.
 - [ ] Run `cargo clippy --workspace --all-targets --all-features -- -D warnings` after actual consumer integration. Do not suppress unused private module warnings to ship an unconsumed store. The core module visibility/API must match its reviewed consumer boundary, never expose a mutation RPC that accepts caller-supplied principal as authority.
 - [ ] Wire store snapshot loading to evaluator initialization: call `load` with owner-derived principal/binding, reject None/corrupt/error, then `replace_policy(principal, binding, snapshot.policy_revision.get(), snapshot.grants)`. A policy mutation is not acknowledged until durable commit AND active evaluator update have reached a safe serialized state. If evaluator publication fails after commit, hold new effects and reload; never continue serving old grants under a successful mutation response.
 - [ ] This slice's integration test proves durable load→authorize→synchronous effect→revoke→reload→old-permit denial. It does not prove multi-process cache invalidation or async effect stopping. Only one owner process may mutate a live profile policy; the later runtime activation must enforce that instance lock and dispatch-generation protocol before exposure.
@@ -1437,3 +1733,9 @@ Roll back enforcement code only with execution disabled for newly bound profiles
 
 ## Combined literal handoff validation20:47UTC
 Extracted wire/catalog/evaluator/durable-store blocks into matching proto+engine crate/module topology. Initial integration caught wrong crate-root type path, Debug-dependent unwrap_err and collapsible-if lint; corrected canonical blocks. Final30 tests (4 wire,7 catalog,9 evaluator,10 durable policy) and workspace/all-target clippy-Dwarnings pass in scratch. This is cross-contract source compatibility evidence, not real EngineCore routing/provider enforcement. No host services or runtime code changed.
+
+## C. Atomic durable-to-live publication consumer
+The complete B source now includes PolicyCoordinator. Engine runtime must own only this coordinator, not separate public store/evaluator handles. All policy replacement/recovery and synchronous effect admission pass its private mutex. Durable commit is followed by latest-row reload and publication before unlock/acknowledgment. Replay returns original receipt but republishes latest durable policy, never old grants. Publication failure closes admission until explicit latest-state recovery succeeds. Coordinator tests cover concurrent revoke/admission, old receipt replay, and a committed revoke whose publication fails while old grants existed. Equal-revision evaluator publication is idempotent only for identical grants. This is one-owner-process synchronization; external database writers or async effect continuation remain unsupported without the later runtime generation/instance-lock protocol. Do not claim this closes full EngineCore resource enforcement.
+
+## Publication consumer validation21:05UTC
+Literal canonical evaluator+store/coordinator blocks extracted into proto/engine topology pass30 engine tests plus4 wire tests and clippy all-targets with warnings denied. Includes old receipt replay against latest revoke, serialized admission/revocation, publication failure after durable mutation and fail-closed recovery. Earlier30-total count is superseded by34 total. Still no actual async EngineCore/provider enforcement claim.
