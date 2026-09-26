@@ -28,26 +28,178 @@ Expected: one line per anchor, exit0. Missing path means re-discover with graft 
 
 - [ ] Add tests first then complete definitions; `cargo test --locked -p zeron-engine --lib delivery_state::tests` must select4 tests and pass. Remove uncertainty rejection in a scratch negative control and require crash test failure. Restore before commit.
 ```rust
-#[derive(Debug,Clone,Copy,PartialEq,Eq)]pub enum Action{Push,CreatePr,Merge,Release,Deploy,Publish}
-#[derive(Debug,Clone,PartialEq,Eq)]pub struct Binding{pub candidate_digest:String,pub destination:String,pub account_ref:String,pub action:Action,pub policy_revision:u64}
-#[derive(Debug,Clone,Copy,PartialEq,Eq)]pub enum Phase{Planned,Dispatched,Uncertain,ObservedSuccess,ObservedFailure,ReconciledAbsent}
-#[derive(Debug,Clone,Copy,PartialEq,Eq)]pub enum Observation{Succeeded,Failed,Unknown,AbsentVerified}
-#[derive(Debug,Clone,Copy,PartialEq,Eq)]pub enum Error{InvalidBinding,AuthorityRequired,BindingChanged,ReconciliationRequired,InvalidTransition,AttemptExhausted}
-#[derive(Debug,Clone,PartialEq,Eq)]pub struct Delivery{binding:Binding,phase:Phase,attempt:u64}
-impl Delivery{
- pub fn plan(binding:Binding)->Result<Self,Error>{if binding.candidate_digest.len()!=64||!binding.candidate_digest.bytes().all(|x|x.is_ascii_digit()||(b'a'..=b'f').contains(&x))||binding.destination.trim().is_empty()||binding.account_ref.trim().is_empty()||binding.policy_revision==0{return Err(Error::InvalidBinding)}Ok(Self{binding,phase:Phase::Planned,attempt:0})}
- pub fn phase(&self)->Phase{self.phase}
- // owner-only checked authority, not client boolean. Persist before issuing effect.
- pub fn dispatch(&mut self,current:&Binding,authorized:bool)->Result<u64,Error>{if &self.binding!=current{return Err(Error::BindingChanged)}if !authorized{return Err(Error::AuthorityRequired)}match self.phase{Phase::Uncertain|Phase::Dispatched=>return Err(Error::ReconciliationRequired),Phase::Planned|Phase::ReconciledAbsent=>{},_=>return Err(Error::InvalidTransition)}let next=self.attempt.checked_add(1).ok_or(Error::AttemptExhausted)?;self.attempt=next;self.phase=Phase::Dispatched;Ok(next)}
- pub fn observe(&mut self,attempt:u64,observation:Observation)->Result<(),Error>{if attempt!=self.attempt||!matches!(self.phase,Phase::Dispatched|Phase::Uncertain){return Err(Error::InvalidTransition)}self.phase=match observation{Observation::Succeeded=>Phase::ObservedSuccess,Observation::Failed=>Phase::ObservedFailure,Observation::Unknown=>Phase::Uncertain,Observation::AbsentVerified=>Phase::ReconciledAbsent};Ok(())}
- pub fn recover(&mut self){if self.phase==Phase::Dispatched{self.phase=Phase::Uncertain}}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Action {
+    Push,
+    CreatePr,
+    Merge,
+    Release,
+    Deploy,
+    Publish,
 }
-#[cfg(test)]mod tests{
- use super::*;fn b()->Binding{Binding{candidate_digest:"a".repeat(64),destination:"local:test".into(),account_ref:"account-a".into(),action:Action::Deploy,policy_revision:1}}
- #[test]fn accepted_candidate_is_not_action_authority(){let mut d=Delivery::plan(b()).unwrap();assert_eq!(d.dispatch(&b(),false),Err(Error::AuthorityRequired));assert_eq!(d.phase(),Phase::Planned);assert_eq!(d.dispatch(&b(),true),Ok(1));}
- #[test]fn crash_never_blindly_replays(){let mut d=Delivery::plan(b()).unwrap();d.dispatch(&b(),true).unwrap();d.recover();assert_eq!(d.dispatch(&b(),true),Err(Error::ReconciliationRequired));d.observe(1,Observation::Unknown).unwrap();assert_eq!(d.dispatch(&b(),true),Err(Error::ReconciliationRequired));d.observe(1,Observation::AbsentVerified).unwrap();assert_eq!(d.dispatch(&b(),false),Err(Error::AuthorityRequired));assert_eq!(d.dispatch(&b(),true),Ok(2));assert_eq!(d.observe(1,Observation::Succeeded),Err(Error::InvalidTransition));}
- #[test]fn changed_destination_account_candidate_and_policy_need_new_binding(){for changed in [Binding{destination:"other".into(),..b()},Binding{account_ref:"other".into(),..b()},Binding{candidate_digest:"b".repeat(64),..b()},Binding{policy_revision:2,..b()}]{let mut d=Delivery::plan(b()).unwrap();assert_eq!(d.dispatch(&changed,true),Err(Error::BindingChanged));}}
- #[test]fn observed_success_not_redispatched(){let mut d=Delivery::plan(b()).unwrap();d.dispatch(&b(),true).unwrap();d.observe(1,Observation::Succeeded).unwrap();assert_eq!(d.dispatch(&b(),true),Err(Error::InvalidTransition));}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Binding {
+    pub candidate_digest: String,
+    pub destination: String,
+    pub account_ref: String,
+    pub action: Action,
+    pub policy_revision: u64,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Phase {
+    Planned,
+    Dispatched,
+    Uncertain,
+    ObservedSuccess,
+    ObservedFailure,
+    ReconciledAbsent,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Observation {
+    Succeeded,
+    Failed,
+    Unknown,
+    AbsentVerified,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Error {
+    InvalidBinding,
+    AuthorityRequired,
+    BindingChanged,
+    ReconciliationRequired,
+    InvalidTransition,
+    AttemptExhausted,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Delivery {
+    binding: Binding,
+    phase: Phase,
+    attempt: u64,
+}
+impl Delivery {
+    pub fn plan(binding: Binding) -> Result<Self, Error> {
+        if binding.candidate_digest.len() != 64
+            || !binding
+                .candidate_digest
+                .bytes()
+                .all(|x| x.is_ascii_digit() || (b'a'..=b'f').contains(&x))
+            || binding.destination.trim().is_empty()
+            || binding.account_ref.trim().is_empty()
+            || binding.policy_revision == 0
+        {
+            return Err(Error::InvalidBinding);
+        }
+        Ok(Self {
+            binding,
+            phase: Phase::Planned,
+            attempt: 0,
+        })
+    }
+    pub fn phase(&self) -> Phase {
+        self.phase
+    }
+    // owner-only checked authority, not client boolean. Persist before issuing effect.
+    pub fn dispatch(&mut self, current: &Binding, authorized: bool) -> Result<u64, Error> {
+        if &self.binding != current {
+            return Err(Error::BindingChanged);
+        }
+        if !authorized {
+            return Err(Error::AuthorityRequired);
+        }
+        match self.phase {
+            Phase::Uncertain | Phase::Dispatched => return Err(Error::ReconciliationRequired),
+            Phase::Planned | Phase::ReconciledAbsent => {}
+            _ => return Err(Error::InvalidTransition),
+        }
+        let next = self.attempt.checked_add(1).ok_or(Error::AttemptExhausted)?;
+        self.attempt = next;
+        self.phase = Phase::Dispatched;
+        Ok(next)
+    }
+    pub fn observe(&mut self, attempt: u64, observation: Observation) -> Result<(), Error> {
+        if attempt != self.attempt || !matches!(self.phase, Phase::Dispatched | Phase::Uncertain) {
+            return Err(Error::InvalidTransition);
+        }
+        self.phase = match observation {
+            Observation::Succeeded => Phase::ObservedSuccess,
+            Observation::Failed => Phase::ObservedFailure,
+            Observation::Unknown => Phase::Uncertain,
+            Observation::AbsentVerified => Phase::ReconciledAbsent,
+        };
+        Ok(())
+    }
+    pub fn recover(&mut self) {
+        if self.phase == Phase::Dispatched {
+            self.phase = Phase::Uncertain
+        }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn b() -> Binding {
+        Binding {
+            candidate_digest: "a".repeat(64),
+            destination: "local:test".into(),
+            account_ref: "account-a".into(),
+            action: Action::Deploy,
+            policy_revision: 1,
+        }
+    }
+    #[test]
+    fn accepted_candidate_is_not_action_authority() {
+        let mut d = Delivery::plan(b()).unwrap();
+        assert_eq!(d.dispatch(&b(), false), Err(Error::AuthorityRequired));
+        assert_eq!(d.phase(), Phase::Planned);
+        assert_eq!(d.dispatch(&b(), true), Ok(1));
+    }
+    #[test]
+    fn crash_never_blindly_replays() {
+        let mut d = Delivery::plan(b()).unwrap();
+        d.dispatch(&b(), true).unwrap();
+        d.recover();
+        assert_eq!(d.dispatch(&b(), true), Err(Error::ReconciliationRequired));
+        d.observe(1, Observation::Unknown).unwrap();
+        assert_eq!(d.dispatch(&b(), true), Err(Error::ReconciliationRequired));
+        d.observe(1, Observation::AbsentVerified).unwrap();
+        assert_eq!(d.dispatch(&b(), false), Err(Error::AuthorityRequired));
+        assert_eq!(d.dispatch(&b(), true), Ok(2));
+        assert_eq!(
+            d.observe(1, Observation::Succeeded),
+            Err(Error::InvalidTransition)
+        );
+    }
+    #[test]
+    fn changed_destination_account_candidate_and_policy_need_new_binding() {
+        for changed in [
+            Binding {
+                destination: "other".into(),
+                ..b()
+            },
+            Binding {
+                account_ref: "other".into(),
+                ..b()
+            },
+            Binding {
+                candidate_digest: "b".repeat(64),
+                ..b()
+            },
+            Binding {
+                policy_revision: 2,
+                ..b()
+            },
+        ] {
+            let mut d = Delivery::plan(b()).unwrap();
+            assert_eq!(d.dispatch(&changed, true), Err(Error::BindingChanged));
+        }
+    }
+    #[test]
+    fn observed_success_not_redispatched() {
+        let mut d = Delivery::plan(b()).unwrap();
+        d.dispatch(&b(), true).unwrap();
+        d.observe(1, Observation::Succeeded).unwrap();
+        assert_eq!(d.dispatch(&b(), true), Err(Error::InvalidTransition));
+    }
 }
 ```
 - [ ] Persist transition to Dispatched and attempt identity atomically before invoking any provider. Crash before/after effect but before observation always recovers Uncertain. The in-memory `recover` method is not durable recovery until real storage integration is supplied.
@@ -87,3 +239,5 @@ Append-only effect records retained across downgrade. Disable new dispatch if re
 
 ## Exact embedded-code validation
 On2026-09-26 20:28UTC the Rust block was extracted from this canonical tasks.md, compiled with `rustc --edition=2024 --test`, and its tests passed. This validates the literal proposed pure core, not production integration or whole-unit acceptance. Evidence: overnight run overnight_1790451935422_12840308488589231076 validation/exact-embedded-core-tests.json.
+
+Quality check20:38UTC: exact proposal blocks formatted in isolated scratch crate; combined20 tests and clippy all-targets with warnings denied pass. These are pure-module checks, not engine integration. Private unused modules cannot independently pass production dead-code lint; integrate their real consumer in the same admitted change rather than add blanket allows or export internal authority types merely to silence warnings.

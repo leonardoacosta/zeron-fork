@@ -28,34 +28,120 @@ Expected: one line per anchor, exit0. Missing path means re-discover with graft 
 
 - [ ] Add tests first, then definitions below; `cargo test --locked -p zeron-engine --lib output_dependencies::tests` must select2 tests and pass. Negative control: remove cycle detection and require cycle test failure in scratch.
 ```rust
-use std::collections::{BTreeMap,BTreeSet};
-#[derive(Debug,Clone,PartialEq,Eq)]pub struct OutputRef{pub assignment:String,pub output:String,pub revision:u64}
-#[derive(Debug,Clone,PartialEq,Eq)]pub struct Edge{pub downstream:String,pub required:OutputRef}
-#[derive(Debug,Clone,PartialEq,Eq)]pub enum Error{InvalidReference,Cycle,DuplicateEdge,Unaccepted,ChangedOutput}
-#[derive(Debug,Default)]pub struct Dependencies{edges:Vec<Edge>}
-impl Dependencies{
- pub fn add(&mut self,edge:Edge)->Result<(),Error>{
-  if edge.downstream.is_empty()||edge.required.assignment.is_empty()||edge.required.output.is_empty()||edge.required.revision==0{return Err(Error::InvalidReference)}
-  if self.edges.contains(&edge){return Err(Error::DuplicateEdge)}
-  // Edges point downstream -> upstream. Adding d -> u cycles if u already reaches d.
-  let mut pending=vec![edge.required.assignment.as_str()];let mut seen=BTreeSet::new();
-  while let Some(node)=pending.pop(){if node==edge.downstream{return Err(Error::Cycle)}if seen.insert(node){pending.extend(self.edges.iter().filter(|e|e.downstream==node).map(|e|e.required.assignment.as_str()));}}
-  self.edges.push(edge);Ok(())
- }
- pub fn ready(&self,downstream:&str,accepted:&BTreeMap<(String,String),u64>)->Result<(),Error>{
-  for edge in self.edges.iter().filter(|e|e.downstream==downstream){
-   match accepted.get(&(edge.required.assignment.clone(),edge.required.output.clone())){
-    None=>return Err(Error::Unaccepted),Some(version)if *version!=edge.required.revision=>return Err(Error::ChangedOutput),_=>{}
-   }
-  }Ok(())
- }
- pub fn len(&self)->usize{self.edges.len()}
+use std::collections::{BTreeMap, BTreeSet};
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutputRef {
+    pub assignment: String,
+    pub output: String,
+    pub revision: u64,
 }
-#[cfg(test)]mod tests{
- use super::*;
- fn e(d:&str,u:&str,r:u64)->Edge{Edge{downstream:d.into(),required:OutputRef{assignment:u.into(),output:"findings".into(),revision:r}}}
- #[test]fn cycles_and_duplicate_insert_are_atomic(){let mut g=Dependencies::default();g.add(e("b","a",1)).unwrap();g.add(e("c","b",1)).unwrap();assert_eq!(g.add(e("a","c",1)),Err(Error::Cycle));assert_eq!(g.add(e("a","a",1)),Err(Error::Cycle));assert_eq!(g.add(e("b","a",1)),Err(Error::DuplicateEdge));assert_eq!(g.len(),2);}
- #[test]fn accepted_stage_not_whole_assignment_and_no_latest_substitution(){let mut g=Dependencies::default();g.add(e("b","a",1)).unwrap();let mut accepted=BTreeMap::new();assert_eq!(g.ready("b",&accepted),Err(Error::Unaccepted));accepted.insert(("a".into(),"findings".into()),1);assert_eq!(g.ready("b",&accepted),Ok(()));accepted.insert(("a".into(),"findings".into()),2);assert_eq!(g.ready("b",&accepted),Err(Error::ChangedOutput));assert_eq!(g.ready("unrelated",&accepted),Ok(()));}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Edge {
+    pub downstream: String,
+    pub required: OutputRef,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Error {
+    InvalidReference,
+    Cycle,
+    DuplicateEdge,
+    Unaccepted,
+    ChangedOutput,
+}
+#[derive(Debug, Default)]
+pub struct Dependencies {
+    edges: Vec<Edge>,
+}
+impl Dependencies {
+    pub fn add(&mut self, edge: Edge) -> Result<(), Error> {
+        if edge.downstream.is_empty()
+            || edge.required.assignment.is_empty()
+            || edge.required.output.is_empty()
+            || edge.required.revision == 0
+        {
+            return Err(Error::InvalidReference);
+        }
+        if self.edges.contains(&edge) {
+            return Err(Error::DuplicateEdge);
+        }
+        // Edges point downstream -> upstream. Adding d -> u cycles if u already reaches d.
+        let mut pending = vec![edge.required.assignment.as_str()];
+        let mut seen = BTreeSet::new();
+        while let Some(node) = pending.pop() {
+            if node == edge.downstream {
+                return Err(Error::Cycle);
+            }
+            if seen.insert(node) {
+                pending.extend(
+                    self.edges
+                        .iter()
+                        .filter(|e| e.downstream == node)
+                        .map(|e| e.required.assignment.as_str()),
+                );
+            }
+        }
+        self.edges.push(edge);
+        Ok(())
+    }
+    pub fn ready(
+        &self,
+        downstream: &str,
+        accepted: &BTreeMap<(String, String), u64>,
+    ) -> Result<(), Error> {
+        for edge in self.edges.iter().filter(|e| e.downstream == downstream) {
+            match accepted.get(&(
+                edge.required.assignment.clone(),
+                edge.required.output.clone(),
+            )) {
+                None => return Err(Error::Unaccepted),
+                Some(version) if *version != edge.required.revision => {
+                    return Err(Error::ChangedOutput);
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.edges.len()
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn e(d: &str, u: &str, r: u64) -> Edge {
+        Edge {
+            downstream: d.into(),
+            required: OutputRef {
+                assignment: u.into(),
+                output: "findings".into(),
+                revision: r,
+            },
+        }
+    }
+    #[test]
+    fn cycles_and_duplicate_insert_are_atomic() {
+        let mut g = Dependencies::default();
+        g.add(e("b", "a", 1)).unwrap();
+        g.add(e("c", "b", 1)).unwrap();
+        assert_eq!(g.add(e("a", "c", 1)), Err(Error::Cycle));
+        assert_eq!(g.add(e("a", "a", 1)), Err(Error::Cycle));
+        assert_eq!(g.add(e("b", "a", 1)), Err(Error::DuplicateEdge));
+        assert_eq!(g.len(), 2);
+    }
+    #[test]
+    fn accepted_stage_not_whole_assignment_and_no_latest_substitution() {
+        let mut g = Dependencies::default();
+        g.add(e("b", "a", 1)).unwrap();
+        let mut accepted = BTreeMap::new();
+        assert_eq!(g.ready("b", &accepted), Err(Error::Unaccepted));
+        accepted.insert(("a".into(), "findings".into()), 1);
+        assert_eq!(g.ready("b", &accepted), Ok(()));
+        accepted.insert(("a".into(), "findings".into()), 2);
+        assert_eq!(g.ready("b", &accepted), Err(Error::ChangedOutput));
+        assert_eq!(g.ready("unrelated", &accepted), Ok(()));
+    }
 }
 ```
 - [ ] Before runtime use, replace plain IDs with shared validated identifiers, bind edges to profile/principal and persist edge insertion plus revision atomically. Concurrent cycle admission must serialize the whole relevant graph transaction; separate in-memory checks are insufficient.
@@ -93,3 +179,5 @@ Keep immutable edge/output revisions and append invalidations. Downgrade blocks 
 
 ## Exact embedded-code validation
 On2026-09-26 20:28UTC the Rust block was extracted from this canonical tasks.md, compiled with `rustc --edition=2024 --test`, and its tests passed. This validates the literal proposed pure core, not production integration or whole-unit acceptance. Evidence: overnight run overnight_1790451935422_12840308488589231076 validation/exact-embedded-core-tests.json.
+
+Quality check20:38UTC: exact proposal blocks formatted in isolated scratch crate; combined20 tests and clippy all-targets with warnings denied pass. These are pure-module checks, not engine integration. Private unused modules cannot independently pass production dead-code lint; integrate their real consumer in the same admitted change rather than add blanket allows or export internal authority types merely to silence warnings.

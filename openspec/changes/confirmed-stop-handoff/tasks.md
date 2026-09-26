@@ -29,39 +29,77 @@ Expected: one line per anchor, exit0. Missing path means re-discover with graft 
 - [ ] Place the test module at the end of the following block first; run `cargo test --locked -p zeron-engine --lib assignment_lifecycle::tests` and record missing-type red. Then add the preceding definitions exactly. A compile failure alone does not prove behavioral sensitivity; next negative control is required.
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Phase { Running, StopRequested, StopUncertain, StoppedConfirmed, HumanOwned, HandbackPending }
+pub enum Phase {
+    Running,
+    StopRequested,
+    StopUncertain,
+    StoppedConfirmed,
+    HumanOwned,
+    HandbackPending,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StopObservation { ReceiptOnly, Unknown, ScopeQuiescent }
+pub enum StopObservation {
+    ReceiptOnly,
+    Unknown,
+    ScopeQuiescent,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Error { StaleGeneration, InvalidTransition, AuthorityRequired, GenerationExhausted }
+pub enum Error {
+    StaleGeneration,
+    InvalidTransition,
+    AuthorityRequired,
+    GenerationExhausted,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Lifecycle { generation: u64, phase: Phase }
+pub struct Lifecycle {
+    generation: u64,
+    phase: Phase,
+}
 impl Lifecycle {
     pub fn running(generation: u64) -> Result<Self, Error> {
-        if generation == 0 { return Err(Error::StaleGeneration); }
-        Ok(Self { generation, phase: Phase::Running })
+        if generation == 0 {
+            return Err(Error::StaleGeneration);
+        }
+        Ok(Self {
+            generation,
+            phase: Phase::Running,
+        })
     }
-    pub fn phase(&self) -> Phase { self.phase }
-    pub fn generation(&self) -> u64 { self.generation }
+    pub fn phase(&self) -> Phase {
+        self.phase
+    }
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
     fn check(&self, generation: u64) -> Result<(), Error> {
-        if generation == self.generation { Ok(()) } else { Err(Error::StaleGeneration) }
+        if generation == self.generation {
+            Ok(())
+        } else {
+            Err(Error::StaleGeneration)
+        }
     }
     pub fn request_stop(&mut self, generation: u64) -> Result<(), Error> {
         self.check(generation)?;
         match self.phase {
             Phase::Running => self.phase = Phase::StopRequested,
-            Phase::StopRequested | Phase::StopUncertain | Phase::StoppedConfirmed => {},
+            Phase::StopRequested | Phase::StopUncertain | Phase::StoppedConfirmed => {}
             _ => return Err(Error::InvalidTransition),
         }
         Ok(())
     }
     // Owner-only observation. Never construct ScopeQuiescent from client claims,
     // stream EOF, token delivery, elapsed grace, or lack of recent file writes.
-    pub fn observe_stop(&mut self, generation: u64, observation: StopObservation) -> Result<(), Error> {
+    pub fn observe_stop(
+        &mut self,
+        generation: u64,
+        observation: StopObservation,
+    ) -> Result<(), Error> {
         self.check(generation)?;
-        if !matches!(self.phase, Phase::StopRequested | Phase::StopUncertain) { return Err(Error::InvalidTransition); }
+        if !matches!(self.phase, Phase::StopRequested | Phase::StopUncertain) {
+            return Err(Error::InvalidTransition);
+        }
         match observation {
-            StopObservation::ReceiptOnly => {},
+            StopObservation::ReceiptOnly => {}
             StopObservation::Unknown => self.phase = Phase::StopUncertain,
             StopObservation::ScopeQuiescent => self.phase = Phase::StoppedConfirmed,
         }
@@ -71,7 +109,7 @@ impl Lifecycle {
         self.check(generation)?;
         match self.phase {
             Phase::StoppedConfirmed => self.phase = Phase::HumanOwned,
-            Phase::HumanOwned => {},
+            Phase::HumanOwned => {}
             _ => return Err(Error::InvalidTransition),
         }
         Ok(())
@@ -80,16 +118,23 @@ impl Lifecycle {
         self.check(generation)?;
         match self.phase {
             Phase::HumanOwned => self.phase = Phase::HandbackPending,
-            Phase::HandbackPending => {},
+            Phase::HandbackPending => {}
             _ => return Err(Error::InvalidTransition),
         }
         Ok(())
     }
     pub fn resume(&mut self, generation: u64, authority_revalidated: bool) -> Result<u64, Error> {
         self.check(generation)?;
-        if self.phase != Phase::HandbackPending { return Err(Error::InvalidTransition); }
-        if !authority_revalidated { return Err(Error::AuthorityRequired); }
-        let next = self.generation.checked_add(1).ok_or(Error::GenerationExhausted)?;
+        if self.phase != Phase::HandbackPending {
+            return Err(Error::InvalidTransition);
+        }
+        if !authority_revalidated {
+            return Err(Error::AuthorityRequired);
+        }
+        let next = self
+            .generation
+            .checked_add(1)
+            .ok_or(Error::GenerationExhausted)?;
         self.generation = next;
         self.phase = Phase::Running;
         Ok(next)
@@ -98,25 +143,49 @@ impl Lifecycle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test] fn receipt_and_unknown_never_allow_takeover() {
-        let mut x=Lifecycle::running(1).unwrap();x.request_stop(1).unwrap();
-        x.observe_stop(1,StopObservation::ReceiptOnly).unwrap();assert_eq!(x.phase(),Phase::StopRequested);
-        assert_eq!(x.take_over(1),Err(Error::InvalidTransition));
-        x.observe_stop(1,StopObservation::Unknown).unwrap();assert_eq!(x.phase(),Phase::StopUncertain);
-        assert_eq!(x.take_over(1),Err(Error::InvalidTransition));
+    #[test]
+    fn receipt_and_unknown_never_allow_takeover() {
+        let mut x = Lifecycle::running(1).unwrap();
+        x.request_stop(1).unwrap();
+        x.observe_stop(1, StopObservation::ReceiptOnly).unwrap();
+        assert_eq!(x.phase(), Phase::StopRequested);
+        assert_eq!(x.take_over(1), Err(Error::InvalidTransition));
+        x.observe_stop(1, StopObservation::Unknown).unwrap();
+        assert_eq!(x.phase(), Phase::StopUncertain);
+        assert_eq!(x.take_over(1), Err(Error::InvalidTransition));
     }
-    #[test] fn explicit_handback_and_fresh_authority_required() {
-        let mut x=Lifecycle::running(7).unwrap();x.request_stop(7).unwrap();x.request_stop(7).unwrap();
-        x.observe_stop(7,StopObservation::ScopeQuiescent).unwrap();x.take_over(7).unwrap();x.take_over(7).unwrap();
-        assert_eq!(x.resume(7,true),Err(Error::InvalidTransition));x.request_handback(7).unwrap();x.request_handback(7).unwrap();
-        assert_eq!(x.resume(7,false),Err(Error::AuthorityRequired));assert_eq!(x.phase(),Phase::HandbackPending);
-        assert_eq!(x.resume(7,true),Ok(8));assert_eq!(x.resume(7,true),Err(Error::StaleGeneration));
-        assert_eq!(x.observe_stop(7,StopObservation::ScopeQuiescent),Err(Error::StaleGeneration));
+    #[test]
+    fn explicit_handback_and_fresh_authority_required() {
+        let mut x = Lifecycle::running(7).unwrap();
+        x.request_stop(7).unwrap();
+        x.request_stop(7).unwrap();
+        x.observe_stop(7, StopObservation::ScopeQuiescent).unwrap();
+        x.take_over(7).unwrap();
+        x.take_over(7).unwrap();
+        assert_eq!(x.resume(7, true), Err(Error::InvalidTransition));
+        x.request_handback(7).unwrap();
+        x.request_handback(7).unwrap();
+        assert_eq!(x.resume(7, false), Err(Error::AuthorityRequired));
+        assert_eq!(x.phase(), Phase::HandbackPending);
+        assert_eq!(x.resume(7, true), Ok(8));
+        assert_eq!(x.resume(7, true), Err(Error::StaleGeneration));
+        assert_eq!(
+            x.observe_stop(7, StopObservation::ScopeQuiescent),
+            Err(Error::StaleGeneration)
+        );
     }
-    #[test] fn unrelated_run_unaffected_and_overflow_atomic() {
-        let y=Lifecycle::running(2).unwrap();let mut x=Lifecycle::running(u64::MAX).unwrap();
-        x.request_stop(u64::MAX).unwrap();x.observe_stop(u64::MAX,StopObservation::ScopeQuiescent).unwrap();x.take_over(u64::MAX).unwrap();x.request_handback(u64::MAX).unwrap();
-        assert_eq!(x.resume(u64::MAX,true),Err(Error::GenerationExhausted));assert_eq!(x.phase(),Phase::HandbackPending);assert_eq!(y.phase(),Phase::Running);
+    #[test]
+    fn unrelated_run_unaffected_and_overflow_atomic() {
+        let y = Lifecycle::running(2).unwrap();
+        let mut x = Lifecycle::running(u64::MAX).unwrap();
+        x.request_stop(u64::MAX).unwrap();
+        x.observe_stop(u64::MAX, StopObservation::ScopeQuiescent)
+            .unwrap();
+        x.take_over(u64::MAX).unwrap();
+        x.request_handback(u64::MAX).unwrap();
+        assert_eq!(x.resume(u64::MAX, true), Err(Error::GenerationExhausted));
+        assert_eq!(x.phase(), Phase::HandbackPending);
+        assert_eq!(y.phase(), Phase::Running);
     }
 }
 ```
@@ -156,3 +225,5 @@ Persist lifecycle transition before acknowledgment. Downgrade active/uncertain w
 
 ## Exact embedded-code validation
 On2026-09-26 20:28UTC the Rust block was extracted from this canonical tasks.md, compiled with `rustc --edition=2024 --test`, and its tests passed. This validates the literal proposed pure core, not production integration or whole-unit acceptance. Evidence: overnight run overnight_1790451935422_12840308488589231076 validation/exact-embedded-core-tests.json.
+
+Quality check20:38UTC: exact proposal blocks formatted in isolated scratch crate; combined20 tests and clippy all-targets with warnings denied pass. These are pure-module checks, not engine integration. Private unused modules cannot independently pass production dead-code lint; integrate their real consumer in the same admitted change rather than add blanket allows or export internal authority types merely to silence warnings.

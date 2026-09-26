@@ -28,23 +28,117 @@ Expected: one line per anchor, exit0. Missing path means re-discover with graft 
 
 - [ ] Add tests then definitions below; `cargo test --locked -p zeron-engine --lib assignment_queue::tests` must select4 tests and pass. Negative control: include blocked items or sort priority ascending in scratch and require corresponding tests fail. Restore.
 ```rust
-#[derive(Debug,Clone,PartialEq,Eq)]pub enum Blocker{Conflict{reason:String},Dependency{reason:String},UncertainStop{run:String},Authority{reason:String}}
-#[derive(Debug,Clone,PartialEq,Eq)]pub struct Entry{pub id:String,pub priority:i32,pub admission_sequence:u64,pub blockers:Vec<Blocker>}
-#[derive(Debug,PartialEq,Eq)]pub enum Error{InvalidEntry,DuplicateId,DuplicateSequence}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Blocker {
+    Conflict { reason: String },
+    Dependency { reason: String },
+    UncertainStop { run: String },
+    Authority { reason: String },
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Entry {
+    pub id: String,
+    pub priority: i32,
+    pub admission_sequence: u64,
+    pub blockers: Vec<Blocker>,
+}
+#[derive(Debug, PartialEq, Eq)]
+pub enum Error {
+    InvalidEntry,
+    DuplicateId,
+    DuplicateSequence,
+}
 // Owner transaction assigns immutable admission sequence; clocks are not queue order.
 // This computes candidates only, never authorizes or dispatches a run.
-pub fn eligible_order(entries:&[Entry])->Result<Vec<&Entry>,Error>{
- let mut ids=std::collections::BTreeSet::new();let mut seq=std::collections::BTreeSet::new();
- for e in entries{if e.id.is_empty()||e.admission_sequence==0{return Err(Error::InvalidEntry)}if !ids.insert(&e.id){return Err(Error::DuplicateId)}if !seq.insert(e.admission_sequence){return Err(Error::DuplicateSequence)}}
- let mut ready:Vec<_>=entries.iter().filter(|e|e.blockers.is_empty()).collect();
- ready.sort_by(|a,b|b.priority.cmp(&a.priority).then(a.admission_sequence.cmp(&b.admission_sequence)));Ok(ready)
+pub fn eligible_order(entries: &[Entry]) -> Result<Vec<&Entry>, Error> {
+    let mut ids = std::collections::BTreeSet::new();
+    let mut seq = std::collections::BTreeSet::new();
+    for e in entries {
+        if e.id.is_empty() || e.admission_sequence == 0 {
+            return Err(Error::InvalidEntry);
+        }
+        if !ids.insert(&e.id) {
+            return Err(Error::DuplicateId);
+        }
+        if !seq.insert(e.admission_sequence) {
+            return Err(Error::DuplicateSequence);
+        }
+    }
+    let mut ready: Vec<_> = entries.iter().filter(|e| e.blockers.is_empty()).collect();
+    ready.sort_by(|a, b| {
+        b.priority
+            .cmp(&a.priority)
+            .then(a.admission_sequence.cmp(&b.admission_sequence))
+    });
+    Ok(ready)
 }
-#[cfg(test)]mod tests{
- use super::*;fn e(id:&str,p:i32,n:u64)->Entry{Entry{id:id.into(),priority:p,admission_sequence:n,blockers:vec![]}}
- #[test]fn blocked_high_priority_does_not_block_independent(){let mut urgent=e("urgent",i32::MAX,1);urgent.blockers.push(Blocker::Conflict{reason:"shared checkout".into()});let normal=e("normal",0,2);let items=[urgent,normal];assert_eq!(eligible_order(&items).unwrap().iter().map(|x|x.id.as_str()).collect::<Vec<_>>(),vec!["normal"]);}
- #[test]fn priority_then_durable_oldest_not_input_order(){let items=[e("new",3,4),e("old",3,1),e("low",-1,2),e("high",4,3)];assert_eq!(eligible_order(&items).unwrap().iter().map(|x|x.id.as_str()).collect::<Vec<_>>(),vec!["high","old","new","low"]);}
- #[test]fn urgency_cannot_remove_stop_or_dependency_blocker(){let mut x=e("x",i32::MAX,1);x.blockers=vec![Blocker::UncertainStop{run:"r".into()},Blocker::Dependency{reason:"unaccepted".into()}];assert!(eligible_order(&[x]).unwrap().is_empty());}
- #[test]fn corrupt_order_is_not_silently_tiebroken(){assert_eq!(eligible_order(&[e("x",0,1),e("x",1,2)]),Err(Error::DuplicateId));assert_eq!(eligible_order(&[e("x",0,1),e("y",0,1)]),Err(Error::DuplicateSequence));}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn e(id: &str, p: i32, n: u64) -> Entry {
+        Entry {
+            id: id.into(),
+            priority: p,
+            admission_sequence: n,
+            blockers: vec![],
+        }
+    }
+    #[test]
+    fn blocked_high_priority_does_not_block_independent() {
+        let mut urgent = e("urgent", i32::MAX, 1);
+        urgent.blockers.push(Blocker::Conflict {
+            reason: "shared checkout".into(),
+        });
+        let normal = e("normal", 0, 2);
+        let items = [urgent, normal];
+        assert_eq!(
+            eligible_order(&items)
+                .unwrap()
+                .iter()
+                .map(|x| x.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["normal"]
+        );
+    }
+    #[test]
+    fn priority_then_durable_oldest_not_input_order() {
+        let items = [
+            e("new", 3, 4),
+            e("old", 3, 1),
+            e("low", -1, 2),
+            e("high", 4, 3),
+        ];
+        assert_eq!(
+            eligible_order(&items)
+                .unwrap()
+                .iter()
+                .map(|x| x.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["high", "old", "new", "low"]
+        );
+    }
+    #[test]
+    fn urgency_cannot_remove_stop_or_dependency_blocker() {
+        let mut x = e("x", i32::MAX, 1);
+        x.blockers = vec![
+            Blocker::UncertainStop { run: "r".into() },
+            Blocker::Dependency {
+                reason: "unaccepted".into(),
+            },
+        ];
+        assert!(eligible_order(&[x]).unwrap().is_empty());
+    }
+    #[test]
+    fn corrupt_order_is_not_silently_tiebroken() {
+        assert_eq!(
+            eligible_order(&[e("x", 0, 1), e("x", 1, 2)]),
+            Err(Error::DuplicateId)
+        );
+        assert_eq!(
+            eligible_order(&[e("x", 0, 1), e("y", 0, 1)]),
+            Err(Error::DuplicateSequence)
+        );
+    }
 }
 ```
 - [ ] Exact SQL transaction must combine eligibility recheck, current policy, conflict/dependency state, lease reservation and dispatch identity before launch. Two callers cannot both dispatch the first candidate. Pure ordering tests do not establish C04 concurrency/restart acceptance.
@@ -82,3 +176,5 @@ Persist queue identity/order/blockers; freeze dispatch on downgrade and rebuild 
 
 ## Exact embedded-code validation
 On2026-09-26 20:28UTC the Rust block was extracted from this canonical tasks.md, compiled with `rustc --edition=2024 --test`, and its tests passed. This validates the literal proposed pure core, not production integration or whole-unit acceptance. Evidence: overnight run overnight_1790451935422_12840308488589231076 validation/exact-embedded-core-tests.json.
+
+Quality check20:38UTC: exact proposal blocks formatted in isolated scratch crate; combined20 tests and clippy all-targets with warnings denied pass. These are pure-module checks, not engine integration. Private unused modules cannot independently pass production dead-code lint; integrate their real consumer in the same admitted change rather than add blanket allows or export internal authority types merely to silence warnings.

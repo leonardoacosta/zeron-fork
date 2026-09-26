@@ -29,49 +29,114 @@ Expected: one line per anchor, exit0. Missing path means re-discover with graft 
 - [ ] Add the test module below first and record red; then definitions. Run `cargo test --locked -p zeron-engine --lib workflow_selection::tests`, require3 selected/passing tests. No launch or DB write belongs in this helper.
 ```rust
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WorkflowVersion { pub id: String, pub revision: u64 }
+pub struct WorkflowVersion {
+    pub id: String,
+    pub revision: u64,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SelectionReason { AssignmentOverride, RepositoryDefault, ProfileDefault }
+pub enum SelectionReason {
+    AssignmentOverride,
+    RepositoryDefault,
+    ProfileDefault,
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Selection { pub version: WorkflowVersion, pub reason: SelectionReason }
+pub struct Selection {
+    pub version: WorkflowVersion,
+    pub reason: SelectionReason,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SelectionError { MissingConfiguration, InvalidReference, NotAuthorized, UnknownVersion }
+pub enum SelectionError {
+    MissingConfiguration,
+    InvalidReference,
+    NotAuthorized,
+    UnknownVersion,
+}
 // resolve/authorize must read owner-side immutable workflow and current profile policy.
 // This pure function performs no launch or store write. No fallback after an explicit error.
 pub fn select(
-    assignment: Option<&WorkflowVersion>, repository: Option<&WorkflowVersion>, profile: Option<&WorkflowVersion>,
-    known: impl Fn(&WorkflowVersion)->bool, authorized: impl Fn(&WorkflowVersion)->bool,
-) -> Result<Selection,SelectionError> {
-    let (version,reason)=if let Some(v)=assignment {(v,SelectionReason::AssignmentOverride)}
-        else if let Some(v)=repository {(v,SelectionReason::RepositoryDefault)}
-        else if let Some(v)=profile {(v,SelectionReason::ProfileDefault)}
-        else {return Err(SelectionError::MissingConfiguration)};
-    if version.id.is_empty() || version.id.len()>128 || version.id.trim()!=version.id || version.revision==0 || version.revision>9_007_199_254_740_991 {
+    assignment: Option<&WorkflowVersion>,
+    repository: Option<&WorkflowVersion>,
+    profile: Option<&WorkflowVersion>,
+    known: impl Fn(&WorkflowVersion) -> bool,
+    authorized: impl Fn(&WorkflowVersion) -> bool,
+) -> Result<Selection, SelectionError> {
+    let (version, reason) = if let Some(v) = assignment {
+        (v, SelectionReason::AssignmentOverride)
+    } else if let Some(v) = repository {
+        (v, SelectionReason::RepositoryDefault)
+    } else if let Some(v) = profile {
+        (v, SelectionReason::ProfileDefault)
+    } else {
+        return Err(SelectionError::MissingConfiguration);
+    };
+    if version.id.is_empty()
+        || version.id.len() > 128
+        || version.id.trim() != version.id
+        || version.revision == 0
+        || version.revision > 9_007_199_254_740_991
+    {
         return Err(SelectionError::InvalidReference);
     }
-    if !authorized(version) { return Err(SelectionError::NotAuthorized); }
-    if !known(version) { return Err(SelectionError::UnknownVersion); }
-    Ok(Selection{version:version.clone(),reason})
+    if !authorized(version) {
+        return Err(SelectionError::NotAuthorized);
+    }
+    if !known(version) {
+        return Err(SelectionError::UnknownVersion);
+    }
+    Ok(Selection {
+        version: version.clone(),
+        reason,
+    })
 }
-#[cfg(test)] mod tests {
+#[cfg(test)]
+mod tests {
     use super::*;
-    fn v(id:&str,n:u64)->WorkflowVersion {WorkflowVersion{id:id.into(),revision:n}}
-    #[test] fn precedence_and_reason() {
-        let(a,r,p)=(v("a",1),v("r",2),v("p",3));
-        for (override_,repo,expected,reason) in [(Some(&a),Some(&r),&a,SelectionReason::AssignmentOverride),(None,Some(&r),&r,SelectionReason::RepositoryDefault),(None,None,&p,SelectionReason::ProfileDefault)] {
-            let s=select(override_,repo,Some(&p), |_|true, |_|true).unwrap();assert_eq!(&s.version,expected);assert_eq!(s.reason,reason);
+    fn v(id: &str, n: u64) -> WorkflowVersion {
+        WorkflowVersion {
+            id: id.into(),
+            revision: n,
         }
     }
-    #[test] fn explicit_failure_never_falls_back() {
-        let(a,p)=(v("bad",1),v("good",1));
-        assert_eq!(select(Some(&a),None,Some(&p), |_|true, |x|x.id=="good"),Err(SelectionError::NotAuthorized));
-        assert_eq!(select(Some(&a),None,Some(&p), |x|x.id=="good", |_|true),Err(SelectionError::UnknownVersion));
-        assert_eq!(select(Some(&v("",1)),None,Some(&p), |_|true, |_|true),Err(SelectionError::InvalidReference));
-        assert_eq!(select(None,None,None, |_|true, |_|true),Err(SelectionError::MissingConfiguration));
+    #[test]
+    fn precedence_and_reason() {
+        let (a, r, p) = (v("a", 1), v("r", 2), v("p", 3));
+        for (override_, repo, expected, reason) in [
+            (Some(&a), Some(&r), &a, SelectionReason::AssignmentOverride),
+            (None, Some(&r), &r, SelectionReason::RepositoryDefault),
+            (None, None, &p, SelectionReason::ProfileDefault),
+        ] {
+            let s = select(override_, repo, Some(&p), |_| true, |_| true).unwrap();
+            assert_eq!(&s.version, expected);
+            assert_eq!(s.reason, reason);
+        }
     }
-    #[test] fn selected_version_is_frozen() {
-        let mut default=v("main",1);let chosen=select(None,None,Some(&default), |_|true, |_|true).unwrap();default.revision=2;
-        assert_eq!(chosen.version.revision,1);assert_eq!(default.revision,2);
+    #[test]
+    fn explicit_failure_never_falls_back() {
+        let (a, p) = (v("bad", 1), v("good", 1));
+        assert_eq!(
+            select(Some(&a), None, Some(&p), |_| true, |x| x.id == "good"),
+            Err(SelectionError::NotAuthorized)
+        );
+        assert_eq!(
+            select(Some(&a), None, Some(&p), |x| x.id == "good", |_| true),
+            Err(SelectionError::UnknownVersion)
+        );
+        assert_eq!(
+            select(Some(&v("", 1)), None, Some(&p), |_| true, |_| true),
+            Err(SelectionError::InvalidReference)
+        );
+        assert_eq!(
+            select(None, None, None, |_| true, |_| true),
+            Err(SelectionError::MissingConfiguration)
+        );
+    }
+    #[test]
+    fn selected_version_is_frozen() {
+        let mut default = v("main", 1);
+        let chosen = select(None, None, Some(&default), |_| true, |_| true).unwrap();
+        default.revision = 2;
+        assert_eq!(chosen.version.revision, 1);
+        assert_eq!(default.revision, 2);
     }
 }
 ```
@@ -111,3 +176,5 @@ Immutable versions and additive references; old readers fail explicitly on unsup
 
 ## Exact embedded-code validation
 On2026-09-26 20:28UTC the Rust block was extracted from this canonical tasks.md, compiled with `rustc --edition=2024 --test`, and its tests passed. This validates the literal proposed pure core, not production integration or whole-unit acceptance. Evidence: overnight run overnight_1790451935422_12840308488589231076 validation/exact-embedded-core-tests.json.
+
+Quality check20:38UTC: exact proposal blocks formatted in isolated scratch crate; combined20 tests and clippy all-targets with warnings denied pass. These are pure-module checks, not engine integration. Private unused modules cannot independently pass production dead-code lint; integrate their real consumer in the same admitted change rather than add blanket allows or export internal authority types merely to silence warnings.
