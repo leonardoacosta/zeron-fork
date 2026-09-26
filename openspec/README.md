@@ -51,6 +51,9 @@ and current registry transport. The registry is a current-state LWW index, not a
 | ZF-19 | Partial | GitHub status and `crates/mcp/` exist; exact ADO/Aperture and other integration readiness unverified |
 
 These are source-based planning classifications, not exhaustive absence proofs or runtime acceptance.
+The baseline map is preliminary: missing-feature classifications identify gaps in inspected surfaces,
+not an exhaustive repository audit. Per-requirement test coverage mapping remains to be completed in
+each feature's discovery. Existing tests were inspected or located, not executed for this roadmap.
 
 ## Current change
 
