@@ -128,6 +128,7 @@ pub struct EngineCore {
     pub sessions: SessionsEngine,
     pub doc_host: DocHost,
     pub workspace: WorkspaceHost,
+    store: Arc<DocsStore>,
     pub registry: Arc<HarnessRegistry>,
     pub repos: Repos,
     pub workspace_files: WorkspaceFiles,
@@ -140,6 +141,7 @@ pub struct EngineCore {
     pub uploads: Uploads,
     pub agent_accounts: AgentAccounts,
     pub device_id: String,
+    assignment_profile_id: String,
     /// Local→synced profile import (account-scoped runtimes only).
     pub local_import: Option<local_import::LocalImporter>,
     workspace_scope: WorkspaceScope,
@@ -231,7 +233,7 @@ impl EngineCore {
             },
         );
         let workspace = WorkspaceHost::open(
-            store,
+            store.clone(),
             WorkspaceHostConfig {
                 device_id: device_id.clone(),
                 device_name: local_device_name(&device_id),
@@ -317,6 +319,7 @@ impl EngineCore {
             sessions,
             doc_host,
             workspace,
+            store,
             registry,
             repos,
             workspace_files,
@@ -329,6 +332,7 @@ impl EngineCore {
             uploads,
             agent_accounts,
             device_id,
+            assignment_profile_id: format!("{}:{}", profile.org_id(), profile.user_id()),
             local_import,
             workspace_scope: profile.scope(),
             auth: std::sync::Mutex::new(None),
@@ -459,6 +463,8 @@ impl EngineCore {
             self.uploads.clone(),
             self.agent_accounts.clone(),
             self.workspace_scope,
+            self.assignment_profile_id.clone(),
+            self.store.clone(),
         )
         .with_auth(self.auth())
         .with_previews(self.previews.clone());

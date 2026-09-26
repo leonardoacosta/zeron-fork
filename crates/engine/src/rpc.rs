@@ -603,10 +603,263 @@ pub struct EngineRpc {
     links: Option<std::sync::Arc<LinkCache>>,
     updater: Option<zeron_update::Updater>,
     local_import: Option<crate::local_import::LocalImporter>,
+    assignment_profile_id: String,
+    assignment_store: std::sync::Arc<zeron_sync::DocsStore>,
     engine_info: EngineInfo,
 }
 
 impl EngineRpc {
+    fn assignment_record(
+        &self,
+        id: String,
+        objective: String,
+        allowed_actions: Vec<String>,
+        linked_sessions: Vec<String>,
+        findings: Vec<String>,
+        evidence: Vec<String>,
+        reviews: Vec<zeron_proto::AssignmentReview>,
+        unresolved_questions: Vec<String>,
+        revision: u64,
+    ) -> Result<zeron_proto::AssignmentRecord, RpcError> {
+        let bytes = objective.len()
+            + allowed_actions.iter().map(String::len).sum::<usize>()
+            + linked_sessions.iter().map(String::len).sum::<usize>()
+            + findings.iter().map(String::len).sum::<usize>()
+            + evidence.iter().map(String::len).sum::<usize>()
+            + unresolved_questions.iter().map(String::len).sum::<usize>()
+            + reviews
+                .iter()
+                .map(|r| r.reviewer.len() + r.outcome.len() + r.notes.len())
+                .sum::<usize>();
+        if id.is_empty()
+            || id.len() > 128
+            || objective.trim().is_empty()
+            || objective.len() > 8192
+            || bytes > 64 * 1024
+            || allowed_actions.len() > 64
+            || linked_sessions.len() > 64
+            || findings.len() > 128
+            || evidence.len() > 128
+            || reviews.len() > 64
+            || unresolved_questions.len() > 128
+            || allowed_actions.iter().any(|s| s.len() > 1024)
+            || findings
+                .iter()
+                .chain(&evidence)
+                .chain(&unresolved_questions)
+                .any(|s| s.len() > 4096)
+            || reviews.iter().any(|r| {
+                r.revision == 0
+                    || r.revision > revision
+                    || r.reviewer.len() > 256
+                    || r.outcome.len() > 256
+                    || r.notes.len() > 4096
+            })
+        {
+            return Err(RpcError::Failed(
+                "invalid assignment bounds or review revision".into(),
+            ));
+        }
+        let mut seen = HashSet::new();
+        for chat_id in &linked_sessions {
+            if chat_id.is_empty() || !seen.insert(chat_id) {
+                return Err(RpcError::Failed("invalid assignment session links".into()));
+            }
+            let chat = self
+                .workspace
+                .chat(chat_id)
+                .map_err(|e| RpcError::Failed(e.to_string()))?
+                .ok_or_else(|| RpcError::Failed("session not found in profile".into()))?;
+            if chat.device_id != self.doc_host.device_id() {
+                return Err(RpcError::Failed("session owner mismatch".into()));
+            }
+        }
+        if reviews.iter().any(|r| r.revision == 0) {
+            return Err(RpcError::Failed("invalid review revision".into()));
+        }
+        Ok(zeron_proto::AssignmentRecord {
+            id,
+            owner_device_id: self.doc_host.device_id().into(),
+            profile_id: self.assignment_profile_id.clone(),
+            revision,
+            objective,
+            allowed_actions,
+            linked_sessions,
+            findings,
+            evidence,
+            reviews,
+            unresolved_questions,
+        })
+    }
+
+    fn create_assignment(
+        &self,
+        p: zeron_proto::CreateAssignmentRequest,
+    ) -> Result<zeron_proto::AssignmentRecord, RpcError> {
+        if p.owner_device_id
+            .as_deref()
+            .is_some_and(|v| v != self.doc_host.device_id())
+            || p.profile_id
+                .as_deref()
+                .is_some_and(|v| v != self.assignment_profile_id)
+        {
+            return Err(RpcError::Failed("assignment owner/profile mismatch".into()));
+        }
+        if p.mutation_id.is_empty() || p.mutation_id.len() > 128 {
+            return Err(RpcError::Failed("invalid mutation id".into()));
+        }
+        let requested = zeron_proto::AssignmentRecord {
+            id: p.id.clone(),
+            owner_device_id: self.doc_host.device_id().into(),
+            profile_id: self.assignment_profile_id.clone(),
+            revision: 1,
+            objective: p.objective.clone(),
+            allowed_actions: p.allowed_actions.clone(),
+            linked_sessions: p.linked_sessions.clone(),
+            findings: p.findings.clone(),
+            evidence: p.evidence.clone(),
+            reviews: p.reviews.clone(),
+            unresolved_questions: p.unresolved_questions.clone(),
+        };
+        let requested_payload =
+            serde_json::to_string(&requested).map_err(|e| RpcError::Failed(e.to_string()))?;
+        if let Some(saved) = self
+            .assignment_store
+            .assignment_mutation_result(
+                &p.id,
+                self.doc_host.device_id(),
+                &self.assignment_profile_id,
+                &p.mutation_id,
+                &requested_payload,
+            )
+            .map_err(|e| RpcError::Failed(format!("assignment replay: {e:?}")))?
+        {
+            return serde_json::from_str(&saved).map_err(|e| RpcError::Failed(e.to_string()));
+        }
+        let record = self.assignment_record(
+            p.id,
+            p.objective,
+            p.allowed_actions,
+            p.linked_sessions,
+            p.findings,
+            p.evidence,
+            p.reviews,
+            p.unresolved_questions,
+            1,
+        )?;
+        let payload =
+            serde_json::to_string(&record).map_err(|e| RpcError::Failed(e.to_string()))?;
+        self.assignment_store
+            .create_assignment(
+                &record.id,
+                &record.owner_device_id,
+                &record.profile_id,
+                &payload,
+                &p.mutation_id,
+            )
+            .map_err(|e| RpcError::Failed(format!("assignment write: {e:?}")))?;
+        Ok(record)
+    }
+
+    fn update_assignment(
+        &self,
+        p: zeron_proto::AssignmentMutationRequest,
+    ) -> Result<zeron_proto::AssignmentRecord, RpcError> {
+        if p.owner_device_id
+            .as_deref()
+            .is_some_and(|v| v != self.doc_host.device_id())
+            || p.profile_id
+                .as_deref()
+                .is_some_and(|v| v != self.assignment_profile_id)
+        {
+            return Err(RpcError::Failed("assignment owner/profile mismatch".into()));
+        }
+        if p.mutation_id.is_empty() || p.mutation_id.len() > 128 {
+            return Err(RpcError::Failed("invalid mutation id".into()));
+        }
+        let requested = zeron_proto::AssignmentRecord {
+            id: p.id.clone(),
+            owner_device_id: self.doc_host.device_id().into(),
+            profile_id: self.assignment_profile_id.clone(),
+            revision: p.expected_revision.saturating_add(1),
+            objective: p.objective.clone(),
+            allowed_actions: p.allowed_actions.clone(),
+            linked_sessions: p.linked_sessions.clone(),
+            findings: p.findings.clone(),
+            evidence: p.evidence.clone(),
+            reviews: p.reviews.clone(),
+            unresolved_questions: p.unresolved_questions.clone(),
+        };
+        let mut requested_payload =
+            serde_json::to_value(&requested).map_err(|e| RpcError::Failed(e.to_string()))?;
+        requested_payload["revision"] = serde_json::json!(p.expected_revision);
+        let requested_payload = requested_payload.to_string();
+        if let Some(saved) = self
+            .assignment_store
+            .assignment_mutation_result(
+                &p.id,
+                self.doc_host.device_id(),
+                &self.assignment_profile_id,
+                &p.mutation_id,
+                &requested_payload,
+            )
+            .map_err(|e| RpcError::Failed(format!("assignment replay: {e:?}")))?
+        {
+            return serde_json::from_str(&saved).map_err(|e| RpcError::Failed(e.to_string()));
+        }
+        let revision = p
+            .expected_revision
+            .checked_add(1)
+            .ok_or_else(|| RpcError::Failed("revision exhausted".into()))?;
+        let current: zeron_proto::AssignmentRecord = self
+            .assignment_store
+            .load_assignment(
+                &p.id,
+                self.doc_host.device_id(),
+                &self.assignment_profile_id,
+            )
+            .map_err(|e| RpcError::Failed(e.to_string()))?
+            .ok_or_else(|| RpcError::Failed("assignment not found".into()))
+            .and_then(|v| serde_json::from_str(&v).map_err(|e| RpcError::Failed(e.to_string())))?;
+        if p.expected_revision != current.revision
+            || current
+                .linked_sessions
+                .iter()
+                .any(|id| !p.linked_sessions.contains(id))
+            || p.allowed_actions != current.allowed_actions
+        {
+            return Err(RpcError::Failed(
+                "stale revision or assignment links/permissions cannot be removed or expanded here"
+                    .into(),
+            ));
+        }
+        let record = self.assignment_record(
+            p.id,
+            p.objective,
+            p.allowed_actions,
+            p.linked_sessions,
+            p.findings,
+            p.evidence,
+            p.reviews,
+            p.unresolved_questions,
+            revision,
+        )?;
+        let raw = serde_json::to_value(&record).map_err(|e| RpcError::Failed(e.to_string()))?;
+        let payload = requested_payload;
+        let result = self
+            .assignment_store
+            .save_assignment(
+                &raw,
+                p.expected_revision,
+                &p.mutation_id,
+                &payload,
+                &record.owner_device_id,
+                &record.profile_id,
+            )
+            .map_err(|e| RpcError::Failed(format!("assignment write: {e:?}")))?;
+        serde_json::from_str(&result).map_err(|e| RpcError::Failed(e.to_string()))
+    }
+
     #[allow(clippy::too_many_arguments)] // engine assembly seam, not a public API
     pub fn new(
         sessions: SessionsEngine,
@@ -622,6 +875,8 @@ impl EngineRpc {
         uploads: Uploads,
         agent_accounts: AgentAccounts,
         workspace_scope: WorkspaceScope,
+        assignment_profile_id: String,
+        assignment_store: std::sync::Arc<zeron_sync::DocsStore>,
     ) -> Self {
         let engine_info = EngineInfo {
             device_id: doc_host.device_id().to_string(),
@@ -643,6 +898,8 @@ impl EngineRpc {
             diff_sync,
             uploads,
             agent_accounts,
+            assignment_profile_id,
+            assignment_store,
             auth: None,
             links: None,
             updater: None,
@@ -1289,6 +1546,11 @@ fn forwardable(method: &str) -> bool {
     matches!(
         method,
         methods::LIST_HARNESSES
+            | methods::CREATE_ASSIGNMENT
+            | methods::PROMOTE_ASSIGNMENT
+            | methods::GET_ASSIGNMENT
+            | methods::LIST_ASSIGNMENT_HISTORY
+            | methods::UPDATE_ASSIGNMENT
             | methods::INSTALL_HARNESS
             | methods::CANCEL_INSTALL
             | methods::GET_TITLE_SETTINGS
@@ -1635,6 +1897,27 @@ impl RpcService for EngineRpc {
             let target = target.to_string();
             if matches!(
                 method,
+                methods::CREATE_ASSIGNMENT
+                    | methods::PROMOTE_ASSIGNMENT
+                    | methods::GET_ASSIGNMENT
+                    | methods::LIST_ASSIGNMENT_HISTORY
+                    | methods::UPDATE_ASSIGNMENT
+            ) {
+                let links = self.links.as_ref().ok_or_else(|| {
+                    RpcError::Failed(format!(
+                        "cannot reach device {target}: remote routing unavailable (offline)"
+                    ))
+                })?;
+                let client = links.client(&target).await?;
+                let info = assignment_engine_info(&client, &target).await?;
+                if !info.supports(zeron_proto::capabilities::ASSIGNMENT_RECORD_V1) {
+                    return Err(RpcError::Failed(format!(
+                        "assignment records unsupported by device {target}"
+                    )));
+                }
+            }
+            if matches!(
+                method,
                 methods::START_AGENT_LOGIN
                     | methods::POLL_AGENT_LOGIN
                     | methods::COMPLETE_AGENT_LOGIN
@@ -1650,6 +1933,81 @@ impl RpcService for EngineRpc {
                 .await;
         }
         match method {
+            methods::CREATE_ASSIGNMENT => {
+                let p: zeron_proto::CreateAssignmentRequest = parse_params(params)?;
+                RpcReply::value(&self.create_assignment(p)?)
+            }
+            methods::PROMOTE_ASSIGNMENT => {
+                let p: zeron_proto::CreateAssignmentRequest = parse_params(params)?;
+                if p.linked_sessions.len() != 1 {
+                    return Err(RpcError::Failed(
+                        "promotion requires exactly one session".into(),
+                    ));
+                }
+                RpcReply::value(&self.create_assignment(p)?)
+            }
+            methods::GET_ASSIGNMENT => {
+                let p: zeron_proto::AssignmentIdRequest = parse_params(params)?;
+                if p.owner_device_id
+                    .as_deref()
+                    .is_some_and(|v| v != self.doc_host.device_id())
+                    || p.profile_id
+                        .as_deref()
+                        .is_some_and(|v| v != self.assignment_profile_id)
+                {
+                    return Err(RpcError::Failed("assignment owner/profile mismatch".into()));
+                }
+                let value = self
+                    .assignment_store
+                    .load_assignment(
+                        &p.id,
+                        self.doc_host.device_id(),
+                        &self.assignment_profile_id,
+                    )
+                    .map_err(|e| RpcError::Failed(e.to_string()))?;
+                RpcReply::value(
+                    &value
+                        .map(|s| {
+                            serde_json::from_str::<serde_json::Value>(&s).map_err(|e| {
+                                RpcError::Failed(format!("invalid assignment JSON: {e}"))
+                            })
+                        })
+                        .transpose()?,
+                )
+            }
+            methods::LIST_ASSIGNMENT_HISTORY => {
+                let p: zeron_proto::AssignmentIdRequest = parse_params(params)?;
+                if p.owner_device_id
+                    .as_deref()
+                    .is_some_and(|v| v != self.doc_host.device_id())
+                    || p.profile_id
+                        .as_deref()
+                        .is_some_and(|v| v != self.assignment_profile_id)
+                {
+                    return Err(RpcError::Failed("assignment owner/profile mismatch".into()));
+                }
+                let rows = self
+                    .assignment_store
+                    .assignment_history(
+                        &p.id,
+                        self.doc_host.device_id(),
+                        &self.assignment_profile_id,
+                    )
+                    .map_err(|e| RpcError::Failed(e.to_string()))?;
+                let rows = rows
+                    .into_iter()
+                    .map(|s| {
+                        serde_json::from_str::<serde_json::Value>(&s).map_err(|e| {
+                            RpcError::Failed(format!("invalid assignment history JSON: {e}"))
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                RpcReply::value(&rows)
+            }
+            methods::UPDATE_ASSIGNMENT => {
+                let p: zeron_proto::AssignmentMutationRequest = parse_params(params)?;
+                RpcReply::value(&self.update_assignment(p)?)
+            }
             methods::ENGINE_INFO => RpcReply::value(&self.engine_info),
             methods::ENGINE_READY => RpcReply::value(&serde_json::json!({ "ready": true })),
             methods::LIST_HARNESSES => RpcReply::value(&self.registry.descriptors()),
@@ -3147,9 +3505,142 @@ impl RpcService for EngineRpc {
     }
 }
 
+async fn assignment_engine_info(
+    client: &zeron_rpc::RpcClient,
+    target: &str,
+) -> Result<EngineInfo, RpcError> {
+    let value = tokio::time::timeout(
+        FILE_SEARCH_RPC_TIMEOUT,
+        client.call(methods::ENGINE_INFO, serde_json::json!({})),
+    )
+    .await
+    .map_err(|_| {
+        RpcError::Transport(format!(
+            "peer {target}: EngineInfo capability probe timed out"
+        ))
+    })??;
+    serde_json::from_value(value)
+        .map_err(|e| RpcError::Failed(format!("invalid remote engine info: {e}")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn assignment_engine_info_probe_times_out_when_rpc_stalls() {
+        struct ResponsiveThenStalled {
+            calls: std::sync::atomic::AtomicUsize,
+            seen_list: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+        }
+        #[async_trait]
+        impl RpcService for ResponsiveThenStalled {
+            async fn handle(
+                &self,
+                method: &str,
+                _params: serde_json::Value,
+            ) -> Result<RpcReply, RpcError> {
+                match self
+                    .calls
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                {
+                    0 if method == methods::LIST_HARNESSES => {
+                        if let Some(tx) = self.seen_list.lock().unwrap().take() {
+                            let _ = tx.send(());
+                        }
+                        RpcReply::value(&serde_json::json!([]))
+                    }
+                    _ => std::future::pending().await,
+                }
+            }
+        }
+        let (seen_list, listed) = tokio::sync::oneshot::channel();
+        let client = zeron_rpc::memory_client(std::sync::Arc::new(ResponsiveThenStalled {
+            calls: std::sync::atomic::AtomicUsize::new(0),
+            seen_list: std::sync::Mutex::new(Some(seen_list)),
+        }));
+        client
+            .call(methods::LIST_HARNESSES, serde_json::json!({}))
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(1), listed)
+            .await
+            .expect("LinkCache readiness probe responded")
+            .expect("readiness notification");
+        let result = tokio::time::timeout(
+            Duration::from_secs(8),
+            assignment_engine_info(&client, "stalled-owner"),
+        )
+        .await
+        .expect("outer test bound");
+        assert!(
+            matches!(result, Err(RpcError::Transport(message)) if message.contains("capability probe timed out"))
+        );
+    }
+
+    #[tokio::test]
+    async fn assignment_create_and_promote_empty_session_over_rpc() {
+        let dir = tempfile::tempdir().unwrap();
+        let core = crate::EngineCore::assemble(
+            dir.path(),
+            std::sync::Arc::new(crate::HarnessRegistry::new()),
+            zeron_proto::HarnessId::Mock,
+            None,
+        )
+        .unwrap();
+        core.workspace
+            .create_chat("empty", None, Some(&core.device_id), None, None)
+            .unwrap();
+        let client = zeron_rpc::memory_client(core.rpc_service());
+        let params = serde_json::json!({"id":"a","objective":"objective","linkedSessions":["empty"],"mutationId":"create-1"});
+        let result = client
+            .call(methods::PROMOTE_ASSIGNMENT, params.clone())
+            .await
+            .unwrap();
+        assert_eq!(result["linkedSessions"][0], "empty");
+        assert_eq!(result["revision"], 1);
+        assert!(client.call(methods::PROMOTE_ASSIGNMENT, serde_json::json!({"id":"b","objective":"objective","linkedSessions":["missing"],"mutationId":"bad"})).await.is_err());
+        assert!(client.call(methods::CREATE_ASSIGNMENT, serde_json::json!({"id":"c","objective":"objective","ownerDeviceId":"wrong","mutationId":"bad"})).await.is_err());
+        assert!(client.call(methods::CREATE_ASSIGNMENT, serde_json::json!({"id":"d","objective":"objective","allowedActions":["x".repeat(2048)],"mutationId":"large"})).await.is_err());
+        let retry = client
+            .call(methods::PROMOTE_ASSIGNMENT, params.clone())
+            .await
+            .unwrap();
+        assert_eq!(
+            retry, result,
+            "retry after later operations returns original result"
+        );
+        assert!(client.call(methods::PROMOTE_ASSIGNMENT, serde_json::json!({"id":"a","objective":"changed","linkedSessions":["empty"],"mutationId":"create-1"})).await.is_err());
+        let update = serde_json::json!({"id":"a","expectedRevision":1,"mutationId":"edit-1","objective":"updated","linkedSessions":["empty"],"allowedActions":[]});
+        let edited = client
+            .call(methods::UPDATE_ASSIGNMENT, update.clone())
+            .await
+            .unwrap();
+        assert_eq!(edited["revision"], 2);
+        assert_eq!(
+            client
+                .call(methods::UPDATE_ASSIGNMENT, update)
+                .await
+                .unwrap(),
+            edited
+        );
+        let history = client
+            .call(
+                methods::LIST_ASSIGNMENT_HISTORY,
+                serde_json::json!({"id":"a"}),
+            )
+            .await
+            .unwrap();
+        assert_eq!(history.as_array().unwrap().len(), 2);
+        core.workspace
+            .create_chat("replacement", None, Some(&core.device_id), None, None)
+            .unwrap();
+        let appended = client.call(methods::UPDATE_ASSIGNMENT, serde_json::json!({"id":"a","expectedRevision":2,"mutationId":"edit-2","objective":"updated","linkedSessions":["empty","replacement"],"allowedActions":[]})).await.unwrap();
+        assert_eq!(appended["linkedSessions"].as_array().unwrap().len(), 2);
+        assert!(client.call(methods::UPDATE_ASSIGNMENT, serde_json::json!({"id":"a","expectedRevision":3,"mutationId":"edit-3","objective":"updated","linkedSessions":["replacement"],"allowedActions":[]})).await.is_err());
+        assert!(client.call(methods::UPDATE_ASSIGNMENT, serde_json::json!({"id":"a","expectedRevision":3,"mutationId":"edit-4","objective":"updated","linkedSessions":["empty","replacement"],"allowedActions":["expanded"]})).await.is_err());
+        core.doc_host.shutdown_workers().await;
+    }
 
     // Each subprocess has private HOME/PATH/overrides, avoiding process-global test races.
     #[cfg(unix)]

@@ -1,31 +1,11 @@
 # Assignment record tasks
 
-Status: pending written-specification review. These tasks are not implementation authorization.
+Status: approved for execution by user at 2026-09-26 08:29 UTC; approval recorded in commit 46ca58a.
 Run through `apply` only after approval of this named change. No external mutation, deployment, or spend.
 
-- [ ] 1. Confirm baseline and define failing contract tests. Recheck repository instructions and current source,
-  inspect DocsStore ownership, profile identity, RPC forwarding, capability decoding, and session lookup.
-  Add tests for the spec scenarios before behavior implementation. Freeze concrete DTO names and input limits
-  using existing conventions. Do not weaken approved invariants to fit old protocol behavior.
-- [ ] 2. Implement profile-store assignment persistence. Depends on 1. Add minimal additive schema/storage methods
-  beside existing SQLite ownership, atomic revision/history writes, stale-write checks and mutation replay handling.
-  Test new/existing-store initialization, reopen durability, rollback, concurrent writes, duplicate identity and
-  conflicting identity reuse. Preserve snapshots and registry state. Do not expose the raw connection publicly.
-- [ ] 3. Implement engine validation and typed owner-routed RPC. Depends on 2. Add explicit create/promote,
-  read/history and revision-checked record updates. Validate membership and payloads, retain native session IDs,
-  preserve permission records on replacement, and advertise additive capability. Test unavailable owners,
-  unsupported hosts, invalid/cross-profile references, and rejection without information leakage.
-- [ ] 4. Run regression and integration gates. Depends on 3. Run `cargo fmt --all -- --check`,
-  `cargo test --locked -p zeron-proto`, `cargo test --locked -p zeron-sync --lib`,
-  `cargo test --locked -p zeron-rpc`, and relevant new engine tests plus
-  `cargo test --locked -p zeron-engine --lib --test local_profiles --test restart_resume --test session_publication`.
-  Confirm actual test target names before execution. Cover direct sessions, no implicit assignment creation,
-  no agent launch, lost replies and owner restart through real interfaces. Record failures or unavailable build
-  dependencies honestly. Run native client checks if shared decoding changes affect those clients.
-- [ ] 5. Perform real two-device acceptance. Depends on 4 and an existing explicitly authorized test setup.
-  Create remotely, restart owner, retrieve record/history, verify profile rejection and no launched agent.
-  Record exact build, environment, observations and limitations without credentials. If unavailable, report
-  blocked acceptance. Do not provision, deploy, sign in elsewhere, or substitute synthetic evidence.
-- [ ] 6. Review and close only with accurate evidence. Depends on 4–5. Compare every spec scenario to results,
-  label source/synthetic/integration/real-workflow evidence, document compatibility limits, and preserve unresolved
-  acceptance blockers. Commit only this change's files. No push or downstream feature execution is authorized.
+- [x] 1. Confirm baseline and define failing contract tests. Repo instructions, DocsStore/profile ownership, RPC routing, capability decoding and session membership inspected. Proto DTO and storage/RPC contracts added test-first. `cargo test --locked -p zeron-proto`: 45 passed; `cargo test --locked -p zeron-sync --lib assignment_mutations_commit_current_history_and_replay_together`: 1 passed.
+- [x] 2. Implement profile-store assignment persistence. Additive migration creates assignments/current, append-only history, and owner/profile/mutation-scoped replay tables. Atomic write transaction covers current+history+replay. Tests cover restart, duplicate/replayed create, stale update, changed-payload rejection and separate profile stores. SQLite remains WAL/NORMAL; no power-loss durability claim.
+- [x] 3. Implement engine validation and typed owner-routed RPC. Local create/promote/get/history/update, owner/profile checks, session membership, input bounds, revision checks, append-only replacement links, unchanged permissions and additive capability implemented. The old-owner routing hang was caused by successful `ok:null` replies decoding as absent, not EngineInfo deadlock. RPC present-value deserialization fixes it. Regression fails without the fix and passes with it. Assignment old-owner routing passes.
+- [x] 4. Run regression and integration gates. Fresh 2026-09-26 verification: proto45, sync66, RPC unit16 and device_room13 passed (RPC ignored tests retained). Serial engine323 passed,2 ignored; local_profiles6 passed; restart_resume8 passed,1 ignored; session_publication4 passed,2 ignored. Full device_routing retry10 passed. Initial parallel engine run failed three native watcher timing tests; serial run passed. Remote workspace watcher failed twice in full routing, then passed isolated and in full routing retry. These intermittent failures remain recorded, not erased by retries. Owned-file rustfmt and git diff --check pass. Repository-wide formatting remains blocked by previously recorded pre-existing files. Logs under `/home/nyaptor/.jcode/overnight/runs/overnight_1790424304982_15631705843512179664/validation/`: full-regression-parallel.log, serial-engine-routing.log, routing-and-profile-gates.log, isolated-remote-watch.log, routing-retry.log.
+- [ ] 5. Perform real two-device acceptance. Blocked. Preflight found no `zeron` binary/process, no ZERON/EDGE/TEST environment names and no authorized second-device endpoint. No provisioning or deployment attempted.
+- [ ] 6. Review and close only with accurate evidence. Independent review raised replay-before-validation ordering. Independent contract adjudication found intentional exact-replay semantics: the approved lost-acknowledgment scenario requires the original result; owner/profile scope and stored payload equality remain enforced. No code change justified. No archive or full acceptance claim while real two-device gate remains blocked. Implementation review disposition complete; real-device acceptance still outstanding. No push or downstream feature execution authorized.

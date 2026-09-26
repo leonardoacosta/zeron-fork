@@ -200,6 +200,11 @@ pub mod methods {
     pub const UPLOAD_CHUNK: &str = "UploadChunk";
     pub const UPLOAD_COMMIT: &str = "UploadCommit";
     pub const READ_ATTACHMENT_CHUNK: &str = "ReadAttachmentChunk";
+    pub const CREATE_ASSIGNMENT: &str = "CreateAssignment";
+    pub const PROMOTE_ASSIGNMENT: &str = "PromoteAssignment";
+    pub const GET_ASSIGNMENT: &str = "GetAssignment";
+    pub const LIST_ASSIGNMENT_HISTORY: &str = "ListAssignmentHistory";
+    pub const UPDATE_ASSIGNMENT: &str = "UpdateAssignment";
     /// Lazy full-tool-output fetch from the R2 sidecar by doc-resident ref
     /// (chat2-sync A3). Edge-direct from any device — never relay-forwarded.
     pub const FETCH_TOOL_BLOB: &str = "FetchToolBlob";

@@ -18,6 +18,14 @@ pub enum StoreError {
     Io(#[from] std::io::Error),
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum AssignmentWriteError {
+    Missing,
+    Stale,
+    Conflict,
+    Invalid,
+}
+
 /// Synchronous command/doc callbacks still need commit-before-send semantics.
 /// Relinquish a multithread runtime's core BEFORE either SQLite or its mutex
 /// can block; moving only the snapshot writer leaves these contenders fatal.
@@ -74,6 +82,9 @@ const MIGRATIONS: &[&str] = &[
     CREATE TABLE sync_job_clock (id INTEGER PRIMARY KEY CHECK(id=1), value INTEGER NOT NULL) STRICT;
     INSERT INTO sync_job_clock VALUES (1,0);",
     "ALTER TABLE chat_sync_jobs ADD COLUMN cursor TEXT NOT NULL DEFAULT '';",
+    "CREATE TABLE assignments (id TEXT PRIMARY KEY, owner TEXT NOT NULL, profile TEXT NOT NULL, revision INTEGER NOT NULL, payload TEXT NOT NULL) STRICT;
+     CREATE TABLE assignment_history (assignment_id TEXT NOT NULL, revision INTEGER NOT NULL, payload TEXT NOT NULL, committed_at INTEGER NOT NULL, PRIMARY KEY(assignment_id,revision)) STRICT;
+     CREATE TABLE assignment_mutations (assignment_id TEXT NOT NULL, owner TEXT NOT NULL, profile TEXT NOT NULL, mutation_id TEXT NOT NULL, payload TEXT NOT NULL, result TEXT NOT NULL, PRIMARY KEY(assignment_id,owner,profile,mutation_id)) STRICT;",
 ];
 
 /// SQLite-backed store under a data directory (`{data_dir}/docs.sqlite3`).
@@ -102,6 +113,166 @@ impl DocsStore {
             conn: Mutex::new(conn),
             failed_publications: Mutex::new(HashSet::new()),
             snapshot_writer: std::sync::Arc::new(tokio::sync::Mutex::new(())),
+        })
+    }
+
+    pub fn assignment_mutation_result(
+        &self,
+        id: &str,
+        owner: &str,
+        profile: &str,
+        mutation_id: &str,
+        payload: &str,
+    ) -> Result<Option<String>, AssignmentWriteError> {
+        store_blocking(|| {
+            let conn = self.conn();
+            let prior: Option<(String, String)> = conn.query_row("SELECT payload,result FROM assignment_mutations WHERE assignment_id=?1 AND owner=?2 AND profile=?3 AND mutation_id=?4", params![id, owner, profile, mutation_id], |r| Ok((r.get(0)?, r.get(1)?))).optional().map_err(|_| AssignmentWriteError::Invalid)?;
+            match prior {
+                Some((saved, result)) if saved == payload => Ok(Some(result)),
+                Some(_) => Err(AssignmentWriteError::Conflict),
+                None => Ok(None),
+            }
+        })
+    }
+
+    pub fn create_assignment(
+        &self,
+        id: &str,
+        owner: &str,
+        profile: &str,
+        payload: &str,
+        mutation_id: &str,
+    ) -> Result<String, AssignmentWriteError> {
+        store_blocking(|| {
+            let mut conn = self.conn();
+            let tx = conn
+                .transaction()
+                .map_err(|_| AssignmentWriteError::Invalid)?;
+            if let Some((prior_payload,result)) = tx.query_row("SELECT payload,result FROM assignment_mutations WHERE assignment_id=?1 AND owner=?2 AND profile=?3 AND mutation_id=?4", params![id, owner, profile, mutation_id], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?))).optional().map_err(|_| AssignmentWriteError::Invalid)? {
+                return if prior_payload == payload { Ok(result) } else { Err(AssignmentWriteError::Conflict) };
+            }
+            tx.execute(
+                "INSERT INTO assignments(id,owner,profile,revision,payload) VALUES (?1,?2,?3,1,?4)",
+                params![id, owner, profile, payload],
+            )
+            .map_err(|_| AssignmentWriteError::Conflict)?;
+            let result = payload.to_string();
+            tx.execute(
+                "INSERT INTO assignment_history VALUES (?1,1,?2,?3)",
+                params![id, payload, now_ms()],
+            )
+            .map_err(|_| AssignmentWriteError::Invalid)?;
+            tx.execute(
+                "INSERT INTO assignment_mutations VALUES (?1,?2,?3,?4,?5,?6)",
+                params![id, owner, profile, mutation_id, payload, result],
+            )
+            .map_err(|_| AssignmentWriteError::Conflict)?;
+            tx.commit().map_err(|_| AssignmentWriteError::Invalid)?;
+            Ok(payload.to_string())
+        })
+    }
+
+    pub fn save_assignment(
+        &self,
+        record: &serde_json::Value,
+        expected_revision: u64,
+        mutation_id: &str,
+        payload: &str,
+        owner: &str,
+        profile: &str,
+    ) -> Result<String, AssignmentWriteError> {
+        let id = record
+            .get("id")
+            .and_then(|v| v.as_str())
+            .ok_or(AssignmentWriteError::Invalid)?;
+        store_blocking(|| {
+            let mut conn = self.conn();
+            let tx = conn
+                .transaction()
+                .map_err(|_| AssignmentWriteError::Invalid)?;
+            if let Some((prior_payload,result)) = tx.query_row("SELECT payload,result FROM assignment_mutations WHERE assignment_id=?1 AND owner=?2 AND profile=?3 AND mutation_id=?4", params![id,owner,profile,mutation_id], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?))).optional().map_err(|_| AssignmentWriteError::Invalid)? {
+                return if prior_payload == payload { Ok(result) } else { Err(AssignmentWriteError::Conflict) };
+            }
+            let (current_owner, current_profile, current_revision): (String, String, i64) = tx
+                .query_row(
+                    "SELECT owner,profile,revision FROM assignments WHERE id=?1",
+                    [id],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .optional()
+                .map_err(|_| AssignmentWriteError::Invalid)?
+                .ok_or(AssignmentWriteError::Missing)?;
+            if current_owner != owner || current_profile != profile {
+                return Err(AssignmentWriteError::Invalid);
+            }
+            if current_revision as u64 != expected_revision {
+                return Err(AssignmentWriteError::Stale);
+            }
+            let next = expected_revision + 1;
+            let mut record = record.clone();
+            record["revision"] = serde_json::json!(next);
+            let value =
+                serde_json::to_string(&record).map_err(|_| AssignmentWriteError::Invalid)?;
+            tx.execute(
+                "UPDATE assignments SET revision=?2,payload=?3 WHERE id=?1 AND revision=?4",
+                params![id, next as i64, value, expected_revision as i64],
+            )
+            .map_err(|_| AssignmentWriteError::Invalid)?;
+            tx.execute(
+                "INSERT INTO assignment_history VALUES (?1,?2,?3,?4)",
+                params![id, next as i64, value, now_ms()],
+            )
+            .map_err(|_| AssignmentWriteError::Invalid)?;
+            tx.execute(
+                "INSERT INTO assignment_mutations VALUES (?1,?2,?3,?4,?5,?6)",
+                params![id, owner, profile, mutation_id, payload, value],
+            )
+            .map_err(|_| AssignmentWriteError::Conflict)?;
+            tx.commit().map_err(|_| AssignmentWriteError::Invalid)?;
+            Ok(value)
+        })
+    }
+
+    pub fn load_assignment(
+        &self,
+        id: &str,
+        owner: &str,
+        profile: &str,
+    ) -> Result<Option<String>, StoreError> {
+        store_blocking(|| {
+            self.conn()
+                .query_row(
+                    "SELECT payload FROM assignments WHERE id=?1 AND owner=?2 AND profile=?3",
+                    params![id, owner, profile],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(StoreError::from)
+        })
+    }
+
+    pub fn assignment_history(
+        &self,
+        id: &str,
+        owner: &str,
+        profile: &str,
+    ) -> Result<Vec<String>, StoreError> {
+        store_blocking(|| {
+            let conn = self.conn();
+            let exists: bool = conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM assignments WHERE id=?1 AND owner=?2 AND profile=?3)",
+                params![id, owner, profile],
+                |r| r.get(0),
+            )?;
+            if !exists {
+                return Ok(Vec::new());
+            }
+            let mut stmt = conn.prepare(
+                "SELECT payload FROM assignment_history WHERE assignment_id=?1 ORDER BY revision",
+            )?;
+            Ok(stmt
+                .query_map([id], |r| r.get(0))?
+                .collect::<Result<_, _>>()?)
         })
     }
 
@@ -607,6 +778,124 @@ fn now_ms() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn assignment_mutations_commit_current_history_and_replay_together() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = DocsStore::open(dir.path()).unwrap();
+        let initial =
+            r#"{"id":"a","ownerDeviceId":"host","profileId":"p","revision":1,"objective":"first"}"#;
+        assert_eq!(
+            store
+                .create_assignment("a", "host", "p", initial, "create")
+                .unwrap(),
+            initial
+        );
+        assert_eq!(
+            store
+                .create_assignment("a", "host", "p", initial, "create")
+                .unwrap(),
+            initial
+        );
+        assert_eq!(
+            store.create_assignment("a", "host", "p", "different", "create"),
+            Err(AssignmentWriteError::Conflict)
+        );
+        let edit = r#"{"id":"a","ownerDeviceId":"host","profileId":"p","revision":0,"objective":"second"}"#;
+        let first = store
+            .save_assignment(
+                &serde_json::from_str(edit).unwrap(),
+                1,
+                "edit-1",
+                edit,
+                "host",
+                "p",
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&first).unwrap()["revision"],
+            2
+        );
+        assert_eq!(
+            store
+                .save_assignment(
+                    &serde_json::from_str(edit).unwrap(),
+                    1,
+                    "edit-1",
+                    edit,
+                    "host",
+                    "p"
+                )
+                .unwrap(),
+            first
+        );
+        assert_eq!(
+            store.save_assignment(
+                &serde_json::from_str(edit).unwrap(),
+                1,
+                "edit-1",
+                "changed",
+                "host",
+                "p"
+            ),
+            Err(AssignmentWriteError::Conflict)
+        );
+        assert_eq!(
+            store.save_assignment(
+                &serde_json::from_str(edit).unwrap(),
+                1,
+                "edit-2",
+                edit,
+                "host",
+                "p"
+            ),
+            Err(AssignmentWriteError::Stale)
+        );
+        drop(store);
+        let reopened = DocsStore::open(dir.path()).unwrap();
+        assert_eq!(
+            reopened.load_assignment("a", "host", "p").unwrap().unwrap(),
+            first
+        );
+        assert_eq!(
+            reopened.assignment_history("a", "host", "p").unwrap().len(),
+            2
+        );
+        assert!(
+            reopened
+                .load_assignment("a", "other", "p")
+                .unwrap()
+                .is_none()
+        );
+        let same =
+            r#"{"id":"a","ownerDeviceId":"host","profileId":"p","revision":1,"objective":"first"}"#;
+        assert_eq!(
+            reopened
+                .create_assignment("a", "host", "p", same, "create")
+                .unwrap(),
+            same
+        );
+        assert_eq!(
+            reopened.create_assignment("a", "host", "p", "changed", "create"),
+            Err(AssignmentWriteError::Conflict)
+        );
+        let other_owner = r#"{"id":"b","ownerDeviceId":"other-host","profileId":"p","revision":1,"objective":"second"}"#;
+        assert_eq!(
+            reopened
+                .create_assignment("b", "other-host", "p", other_owner, "shared")
+                .unwrap(),
+            other_owner
+        );
+        let other = r#"{"id":"c","ownerDeviceId":"host","profileId":"p2","revision":1,"objective":"other"}"#;
+        let other_profile_dir = tempfile::tempdir().unwrap();
+        let other_profile = DocsStore::open(other_profile_dir.path()).unwrap();
+        assert_eq!(
+            other_profile
+                .create_assignment("a", "host", "p2", other, "create")
+                .unwrap(),
+            other
+        );
+    }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn contended_connection_does_not_starve_a_two_worker_runtime() {

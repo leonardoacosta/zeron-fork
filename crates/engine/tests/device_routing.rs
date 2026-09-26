@@ -49,19 +49,26 @@ struct RelayState {
     clients: HashMap<String, mpsc::UnboundedSender<Vec<u8>>>,
 }
 
-async fn fake_device_room() -> (String, tokio::task::JoinHandle<()>) {
+async fn fake_device_room() -> (
+    String,
+    tokio::task::JoinHandle<()>,
+    tokio::sync::oneshot::Receiver<()>,
+) {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind relay");
     let url = format!(
         "http://127.0.0.1:{}",
         listener.local_addr().expect("addr").port()
     );
     let state = Arc::new(Mutex::new(RelayState::default()));
+    let (host_ready_tx, host_ready_rx) = tokio::sync::oneshot::channel::<()>();
+    let host_ready_tx = Arc::new(Mutex::new(Some(host_ready_tx)));
     let task = tokio::spawn(async move {
         loop {
             let Ok((stream, _)) = listener.accept().await else {
                 break;
             };
             let state = state.clone();
+            let host_ready_tx = host_ready_tx.clone();
             tokio::spawn(async move {
                 let mut uri = String::new();
                 let Ok(ws) = tokio_tungstenite::accept_hdr_async(
@@ -84,10 +91,14 @@ async fn fake_device_room() -> (String, tokio::task::JoinHandle<()>) {
                     .to_string();
                 let (mut sink, mut ws_stream) = ws.split();
                 let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
+                let client_tx = tx.clone();
                 {
                     let mut st = state.lock().expect("lock");
                     if is_host {
                         st.host = Some(tx);
+                        if let Some(tx) = host_ready_tx.lock().unwrap().take() {
+                            let _ = tx.send(());
+                        }
                     } else {
                         st.clients.insert(conn_id.clone(), tx);
                     }
@@ -118,13 +129,95 @@ async fn fake_device_room() -> (String, tokio::task::JoinHandle<()>) {
                         let mut routed = DeviceFrameHeader::new(header.s, header.k);
                         routed.from = Some(conn_id.clone());
                         let _ = host.send(encode_device_frame(&routed, &payload).expect("encode"));
+                    } else {
+                        let bounce = DeviceFrameHeader::new(header.s, " relay");
+                        let payload = serde_json::json!({"error": "host_offline"}).to_string();
+                        let _ = client_tx.send(
+                            encode_device_frame(&bounce, payload.as_bytes()).expect("encode"),
+                        );
                     }
                 }
                 writer.abort();
             });
         }
     });
-    (url, task)
+    (url, task, host_ready_rx)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn assignment_routing_rejects_old_owner_without_writing_locally() {
+    let (relay_url, _relay, host_ready) = fake_device_room().await;
+    let dirs = tempfile::tempdir().unwrap();
+    let old_info = zeron_proto::EngineInfo {
+        device_id: "old-owner".into(),
+        workspace_scope: zeron_proto::WorkspaceScope::Development,
+        cursor_sdk_version: None,
+        capabilities: vec![],
+    };
+    let old_service = Arc::new(LegacyChangeRequestService {
+        list_harnesses_calls: AtomicUsize::new(0),
+    });
+    let service: Arc<dyn RpcService> = Arc::new(OldInfoWrapper {
+        info: old_info,
+        inner: old_service.clone(),
+    });
+    let _host = HostRelay::spawn(
+        HostRelayConfig::new(
+            &relay_url,
+            "old-owner",
+            Arc::new(StaticToken("test-user".into())),
+        ),
+        service,
+        Arc::new(|_| false),
+    );
+    tokio::time::timeout(Duration::from_secs(10), host_ready)
+        .await
+        .expect("fake owner host must connect to relay")
+        .expect("host-ready signal");
+    let caller = assemble(&dirs.path().join("caller"), "caller");
+    let mut config = LinkCacheConfig::new(relay_url, Arc::new(StaticToken("test-user".into())));
+    config.probe_timeout = Duration::from_secs(5);
+    caller.set_links(LinkCache::new(config));
+    let rpc = zeron_rpc::memory_client(caller.rpc_service());
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    let err = loop {
+        let call = tokio::time::timeout(Duration::from_secs(5), rpc.call(methods::CREATE_ASSIGNMENT, serde_json::json!({"id":"x","objective":"x","mutationId":"m","targetDeviceId":"old-owner"}))).await;
+        match call {
+            Ok(Err(error)) if error.to_string().contains("assignment records unsupported") => {
+                break error;
+            }
+            Ok(Err(_)) if tokio::time::Instant::now() < deadline => {
+                tokio::time::sleep(Duration::from_millis(100)).await
+            }
+            Err(_) => panic!("assignment route probe stalled during owner capability handshake"),
+            other => panic!("expected explicit unsupported capability, got {other:?}"),
+        }
+    };
+    assert!(err.to_string().contains("assignment records unsupported"));
+    let local = zeron_rpc::memory_client(caller.rpc_service())
+        .call(methods::GET_ASSIGNMENT, serde_json::json!({"id":"x"}))
+        .await
+        .unwrap();
+    assert!(
+        local.is_null(),
+        "unsupported owner must not create a local substitute"
+    );
+    caller.shutdown().await;
+}
+
+struct OldInfoWrapper {
+    info: zeron_proto::EngineInfo,
+    inner: Arc<LegacyChangeRequestService>,
+}
+
+#[async_trait]
+impl RpcService for OldInfoWrapper {
+    async fn handle(&self, method: &str, params: serde_json::Value) -> Result<RpcReply, RpcError> {
+        if method == methods::ENGINE_INFO {
+            return RpcReply::value(&self.info);
+        }
+        self.inner.handle(method, params).await
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -392,7 +485,7 @@ fn assert_public_change_request_payload(item: &serde_json::Value) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn checkout_change_request_stream_matches_locally_and_through_device_routing() {
-    let (relay_url, _relay) = fake_device_room().await;
+    let (relay_url, _relay, _host_ready) = fake_device_room().await;
     let dirs = tempfile::tempdir().expect("tempdir");
     let checkout = dirs.path().join("checkout");
     init_git_repo(&checkout);
@@ -514,7 +607,7 @@ async fn checkout_change_request_stream_matches_locally_and_through_device_routi
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn unsupported_remote_change_request_watch_keeps_the_shared_device_link() {
-    let (relay_url, _relay) = fake_device_room().await;
+    let (relay_url, _relay, _host_ready) = fake_device_room().await;
     let dirs = tempfile::tempdir().expect("tempdir");
     let legacy = Arc::new(LegacyChangeRequestService {
         list_harnesses_calls: AtomicUsize::new(0),
@@ -589,7 +682,7 @@ async fn unsupported_remote_change_request_watch_keeps_the_shared_device_link() 
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn git_status_is_computed_on_the_checkout_host_through_the_relay() {
-    let (relay_url, _relay) = fake_device_room().await;
+    let (relay_url, _relay, _host_ready) = fake_device_room().await;
     let dirs = tempfile::tempdir().unwrap();
     let root = dirs.path().join("checkout");
     init_git_repo(&root);
@@ -678,7 +771,7 @@ async fn git_status_is_computed_on_the_checkout_host_through_the_relay() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn target_device_id_routes_over_the_relay() {
-    let (relay_url, _relay) = fake_device_room().await;
+    let (relay_url, _relay, _host_ready) = fake_device_room().await;
     let dirs = tempfile::tempdir().expect("tempdir");
 
     // Engine B hosts its device room on the fake relay.
@@ -1171,6 +1264,22 @@ async fn target_device_id_routes_over_the_relay() {
             .contains("belongs to another device")
     );
 
+    let offline = client.call(methods::CREATE_ASSIGNMENT, serde_json::json!({
+        "id": "offline", "objective": "test", "mutationId": "offline", "targetDeviceId": "device-offline",
+    })).await.expect_err("unavailable owner must fail");
+    assert!(
+        offline.to_string().contains("offline") || offline.to_string().contains("device"),
+        "{offline}"
+    );
+    let local = zeron_rpc::memory_client(core_a.rpc_service())
+        .call(methods::GET_ASSIGNMENT, serde_json::json!({"id":"offline"}))
+        .await
+        .unwrap();
+    assert!(
+        local.is_null(),
+        "remote unavailable must not write locally: {local}"
+    );
+
     core_a.shutdown().await;
     core_b.shutdown().await;
 }
@@ -1191,7 +1300,7 @@ async fn exercise_terminal_relay(projectless: bool) {
     use base64::Engine as _;
     use base64::engine::general_purpose::STANDARD as BASE64;
 
-    let (relay_url, _relay) = fake_device_room().await;
+    let (relay_url, _relay, _host_ready) = fake_device_room().await;
     let dirs = tempfile::tempdir().expect("tempdir");
     let cwd = dirs.path().join("work");
     std::fs::create_dir_all(&cwd).expect("cwd");
@@ -1367,7 +1476,7 @@ async fn exercise_terminal_relay(projectless: bool) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn workspace_file_surface_proxies_over_the_relay() {
-    let (relay_url, _relay) = fake_device_room().await;
+    let (relay_url, _relay, _host_ready) = fake_device_room().await;
     let dirs = tempfile::tempdir().expect("tempdir");
     let repo_b = dirs.path().join("repo-b");
     init_workspace_repo(&repo_b).await;
@@ -1682,7 +1791,7 @@ async fn remote_target_without_links_fails_clearly() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn queue_watch_and_single_consumption_route_to_the_remote_chat_host() {
-    let (relay_url, _relay) = fake_device_room().await;
+    let (relay_url, _relay, _host_ready) = fake_device_room().await;
     let dirs = tempfile::tempdir().expect("tempdir");
 
     // Seed B's session doc while the workspace temporarily names A as host.
