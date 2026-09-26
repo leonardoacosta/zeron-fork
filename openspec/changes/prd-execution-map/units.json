@@ -28,7 +28,7 @@
       "The currently observed formatter/clippy baseline is not proven green; repair it in scope before admitting later rounds."
     ],
     "rollback": "Revert workflow changes without deleting historical artifacts. Never modify deploy/release triggers to run on planning branches. Preserve read-only permissions; no secrets in untrusted pull-request jobs.",
-    "gate": "Run documented quality/test commands and demonstrate an intentionally failing disposable branch cannot promote; no real release or hosted mutation is needed.",
+    "gate": "Local exact workflow/test validation, then separately authorized hosted ruleset and disposable failing-PR proof. No release/deploy. Local checks alone cannot prove hosted merge blocking.",
     "readiness": "refinement_required",
     "readiness_reason": "Exact summary jobs/tests drafted and scratch-validated; round evidence/provenance and clean baseline still require final review."
   },

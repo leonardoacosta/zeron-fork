@@ -13,7 +13,7 @@ Extend existing CI, not a separate build system. Every change iteration must pas
 No unrelated subsystem rewrite, global defaults change, unauthorized external mutation or silent capability fallback. This change does not implement sibling change responsibilities. See design.md for exact boundary and approval gate.
 
 ## Outcome
-Run documented quality/test commands and demonstrate an intentionally failing disposable branch cannot promote; no real release or hosted mutation is needed.
+Run documented quality/test commands locally without release or deployment. Hosted enforcement acceptance additionally needs authorized repository ruleset configuration and a disposable failing PR; those are external mutations and remain separately blocked until explicitly authorized. Do not claim the local plan tests prove merge protection.
 
 ## Promotion
 Follow `../prd-execution-map/design.md` CI protocol. This change and its round cannot promote on stale/partial/missing checks. Approval of the PRD is not blanket implementation or delivery authorization.
