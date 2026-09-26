@@ -39,3 +39,6 @@ Structural inspection and provider doubles may support but cannot replace this b
 
 ## Implementation readiness
 This is a bounded behavior contract, not code-complete implementation instructions. A `feature` refinement must replace discovery tasks with exact 2–5 minute test/red/minimal-code/green/commit steps, complete code blocks and actual symbol names, then pass review. Newly created paths must be explicitly listed there. If provider/UI/product judgment remains genuinely unresolved, retain blocked status and ask that one question rather than choose silently.
+
+## Exact selection core boundary
+Tasks now include a compiled3-test pure precedence/no-fallback/frozen-copy implementation. IDs and versions refer to immutable workflow catalog rows, not latest pointers. Trigger resolution must not call the interactive default-selection helper without an explicit trigger workflow binding. Unknown version and unauthorized override are terminal selection errors, not reasons to fall back. Owner-side policy/catalog callbacks must be validated at persistence/dispatch boundaries. Full workflow schema/storage/runner integration remains open; pure function success is not full workflow acceptance.
