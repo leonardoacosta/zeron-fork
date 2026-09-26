@@ -238,8 +238,15 @@
     ],
     "rollback": "Additive unused catalog only; do not advertise runtime capability. Future schema refused before mutation; retain legacy stores unchanged.",
     "gate": "Exact proto/catalog production tests plus real SQLite concurrent CAS, trigger rollback/reopen, poison/future-schema negatives. No runtime isolation claim.",
-    "readiness": "refinement_required",
-    "readiness_reason": "Full wire/catalog code extracted and tested; final exact-code quality/cold integration review pending before implementation-ready label."
+    "readiness": "implementation_ready",
+    "readiness_reason": "Bounded wire/catalog only. Exact code and test steps cold-reviewed, extracted4+7 tests and clippy pass; approval and ci-promotion-gates remain required.",
+    "handoff_validation": {
+      "kind": "scratch-extracted-code-and-independent-review",
+      "tests": "4 wire +7 catalog",
+      "quality": "clippy --workspace --all-targets -- -D warnings passed",
+      "review": "goat cold review21:11UTC, no technical blocker",
+      "limits": "No production implementation/runtime isolation claim; named approval and predecessor promotion required"
+    }
   },
   {
     "slug": "profile-access-enforcement",
