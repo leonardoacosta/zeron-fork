@@ -2,6 +2,18 @@
 
 **Dependencies:** `work-profile-catalog`
 
+## Low-context execution order
+Read only the current numbered step and its complete referenced Rust block. Do not implement the entire file in one turn. Before every commit re-read the scoped diff and required check output. The complete code blocks are literal proposed target contents, not permission to skip the test-first sequence.
+
+1. Extract the test module from slice A into the exact target file, add its module declaration, and record the expected missing-definition red.
+2. Add slice A definitions above that same test module, not a duplicated test module. Run the exact focused test command/count. If compiler imports differ, stop and correct this contract before proceeding.
+3. Run slice A's negative-control mutation in scratch, restore, rerun green and formatting. Do not promote unused production modules alone when required lint fails; keep consumer integration in the same approved change.
+4. Extract slice B test module, then its complete implementation. Reuse upstream proto/evaluator types exactly; do not recreate look-alike structs to get compilation green.
+5. Run slice B tests and combined A+B tests. Fault/concurrency tests must run, not just compile. Record selected counts and all warnings.
+6. Run complete changed-crate and round CI, then independent contract/security review before scoped commit/promotion. Hosted acceptance is separately required where stated.
+
+The unit remains gated if any later integration step is unresolved. A helper passing isolated tests is not the full feature. Never invent new source files or API names beyond those explicitly listed below.
+
 ## A. Exact synchronous authorization core proposal
 **Create:** `crates/engine/src/work_authorization.rs`. **Modify:** `crates/engine/src/lib.rs` adds private `mod work_authorization;`. Reuse proposed proto profile types; no provider calls or credential values in this module.
 
