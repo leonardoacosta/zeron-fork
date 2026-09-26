@@ -1,6 +1,9 @@
 # Assignment record tasks
 
 Status: approved for execution by user at 2026-09-26 08:29 UTC; approval recorded in commit 46ca58a.
+Local deployment mandate executed 2026-09-26 17:04 UTC: homelab `~/.local/bin/zeron-fork` and Mac `~/Applications/Zeron Fork.app` installed side-by-side with isolated default profiles. Original running Mac app preserved. Installed native routing and packaged launcher checks passed. No persistent relay/autostart installed. Hosted relay replacement, WorkOS and notarized distribution explicitly excluded by user.
+
+Additional gates: commit `34ea27b` verifies real SQLite create/update rollback on late mutation insert failure and zero harness invocations across assignment create/promote/update/get/history. Parent reran both tests successfully. Native watcher tests passed60/60 repetitions and remote watcher10/10; historical timing failures retained, no speculative production fix. Full workspace file integration passed6/6 with `TMPDIR=/var/tmp`; the default scratch directory was inside a Git repository and invalidated the plain-folder fixture. Evidence in overnight validation/assignment-failure-noexecution.log, watcher-repeat.log, workspace-integration-clean-temp.log and installed-native-route.log. Remaining open checkboxes below describe historical/full-scope acceptance, not hosted-auth prerequisites for this local deployment. No archive or push performed.
 Run through `apply` only after approval of this named change. No external mutation, deployment, or spend.
 
 - [x] 1. Confirm baseline and define failing contract tests. Repo instructions, DocsStore/profile ownership, RPC routing, capability decoding and session membership inspected. Proto DTO and storage/RPC contracts added test-first. `cargo test --locked -p zeron-proto`: 45 passed; `cargo test --locked -p zeron-sync --lib assignment_mutations_commit_current_history_and_replay_together`: 1 passed.
