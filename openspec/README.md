@@ -10,6 +10,13 @@ No deployment, external write, credential provisioning, or spend follows from th
 
 ## Approved roadmap boundaries
 
+Detailed decomposition proposed on 2026-09-26: [PRD execution map](changes/prd-execution-map/design.md).
+It maps all 19 requirements into 33 bounded new change contracts plus existing assignment-record,
+with ten integration rounds and mandatory CI before every iteration/round promotion.
+Child contracts are discovery/refinement-ready, not blanket implementation approval.
+Start with `ci-promotion-gates`; exact implementation tasks must pass refinement and review before `apply`.
+The phase table and baseline classifications below are historical context, not current readiness claims.
+
 Each row contains multiple separately designed changes. Only assignment-record has a detailed design.
 
 | Phase | Feature boundaries and dependency order | Requirements | Exit evidence |

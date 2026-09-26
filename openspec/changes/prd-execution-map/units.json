@@ -1,0 +1,1143 @@
+[
+  {
+    "slug": "ci-promotion-gates",
+    "title": "CI admission and round promotion",
+    "zf": [
+      "01",
+      "14"
+    ],
+    "round": 0,
+    "deps": [],
+    "paths": [
+      ".github/workflows/ui-tests.yml",
+      ".github/workflows/preview-tests.yml",
+      ".github/workflows/windows.yml",
+      "Cargo.toml",
+      "openspec/README.md"
+    ],
+    "behavior": "Extend existing CI, not a separate build system. Every change iteration must pass its declared checks; every integrated round must pass the union of affected checks on one exact commit. Persist requirement-to-check results, platform, toolchain, skipped tests and artifact references in the change tasks. A failed, missing, cancelled or stale required check blocks promotion. Newly discovered prerequisite failures become bounded repair changes, not permanent waivers.",
+    "cases": [
+      "Given two independently green changes with conflicting combined behavior, when integrated CI fails, then neither combined round nor its dependents promote.",
+      "Given CI success for commit A, when source/config/lockfile changes to B, then A evidence cannot promote B.",
+      "Given a filter selects zero tests or an ignored external test never runs, then it is not coverage.",
+      "Given native platform/auth credentials are unavailable, record blocked evidence and hold the affected acceptance, without disabling a job to manufacture green."
+    ],
+    "traps": [
+      "Do not call local shell execution a hosted CI run.",
+      "Do not use continue-on-error, lowered lint severity, deleted assertions, blanket ignores or rerun-until-green as fixes.",
+      "The currently observed formatter/clippy baseline is not proven green; repair it in scope before admitting later rounds."
+    ],
+    "rollback": "Revert workflow changes without deleting historical artifacts. Never modify deploy/release triggers to run on planning branches. Preserve read-only permissions; no secrets in untrusted pull-request jobs.",
+    "gate": "Run documented quality/test commands and demonstrate an intentionally failing disposable branch cannot promote; no real release or hosted mutation is needed."
+  },
+  {
+    "slug": "dependency-attribution",
+    "title": "Dependency and asset attribution for fork distribution",
+    "zf": [
+      "01",
+      "19"
+    ],
+    "round": 0,
+    "deps": [
+      "ci-promotion-gates"
+    ],
+    "paths": [
+      "Cargo.toml",
+      "Cargo.lock",
+      "edge/package-lock.json",
+      "scripts/package-linux.sh",
+      "scripts/package-macos.sh",
+      "dist/macos/Info.plist",
+      "docs/fork-prd.md"
+    ],
+    "behavior": "Inventory exact selected dependency/asset licenses and required attribution for distributed local builds, including pinned GPUI/component forks, fonts and browser/platform components. Root MIT alone does not settle asset/dependency terms. Record evidence and package required notices without claiming legal review beyond verified facts.",
+    "cases": [
+      "Pinned dependency revision changes: attribution evidence invalidated for that package.",
+      "Binary package omits required font notice: packaging gate fails.",
+      "License unresolved: affected distribution held, no assumption from repository root license."
+    ],
+    "traps": [
+      "Do not rename upstream licenses or remove notices.",
+      "Do not infer commercial distribution permission from successful compilation."
+    ],
+    "rollback": "Add notices without altering user data. Rebuild package if notice content corrected; preserve original license texts.",
+    "gate": "Inspect actual generated package contents and exact pinned licenses; unresolved terms routed to human review without invented conclusions."
+  },
+  {
+    "slug": "work-profile-boundary",
+    "title": "Named work profiles and explicit bindings",
+    "zf": [
+      "02"
+    ],
+    "round": 1,
+    "deps": [
+      "ci-promotion-gates"
+    ],
+    "paths": [
+      "crates/engine/src/profile.rs",
+      "crates/engine/src/lib.rs",
+      "crates/proto/src/workspace.rs",
+      "crates/sync/src/store.rs",
+      "crates/engine/tests/local_profiles.rs"
+    ],
+    "behavior": "Introduce extensible work-profile identity/configuration separate from Local/Synced/Development transport scope. Personal/Priceless/Brown are named work contexts, not hardcoded three-case permissions. Bind direct sessions and assignments to a stable work-profile ID and revision. Existing data must have an explicit migration/binding rule; ambiguous legacy ownership remains read-only/held rather than assigned by guess.",
+    "cases": [
+      "Two profiles on one device cannot retrieve each other's assignment, transcript, upload or repository binding through local or remote RPC.",
+      "Rename a profile while a session runs: identity stays stable and the frozen binding does not silently change.",
+      "Open legacy data without an unambiguous work-profile binding: show migration-required state, retain original bytes and prohibit execution.",
+      "Create a fourth profile without changing an enum or granting default access."
+    ],
+    "traps": [
+      "Transport login/account scope is not a work profile.",
+      "A Brown label must not probe Brown systems.",
+      "Do not remap historical assignments to whichever profile is active now."
+    ],
+    "rollback": "Additive migration with a backup and old-store compatibility check. Downgrade must refuse unsupported bindings rather than merge profiles. Retain legacy source data.",
+    "gate": "Real two-profile owner/client reads and restart, plus legacy-store fixture migration and denied cross-profile access."
+  },
+  {
+    "slug": "integration-harness-observer-research",
+    "title": "Jcode, Herdr and observer capability research",
+    "zf": [
+      "15",
+      "09",
+      "19"
+    ],
+    "round": 1,
+    "deps": [
+      "ci-promotion-gates"
+    ],
+    "paths": [
+      "crates/harness/src/lib.rs",
+      "crates/engine/src/registry.rs",
+      "crates/engine/src/sessions.rs",
+      "docs/research/harness.md",
+      "docs/fork-prd.md"
+    ],
+    "behavior": "Produce versioned evidence for Jcode environment-local swarm integration and Herdr attachment, and separately SystemOne observer, Jev, Laya and empryo identity/capabilities. Identify native IDs, start/stop proof, status, configuration, usage and isolation contracts. Unknown products/APIs remain unknown and cannot become executable adapters. Keep SystemOne distinct from engineering harness.",
+    "cases": [
+      "A tool is installed but no stop proof/API exists: capability remains blocked.",
+      "Documentation and observed version disagree: record mismatch and do not guess request shape.",
+      "Jcode preferred but unavailable: ordinary configured engineer stays unchanged."
+    ],
+    "traps": [
+      "Do not conflate names or assume empryo spelling identifies a known product.",
+      "No synthetic API response labelled live.",
+      "Do not create a generic adapter framework before verified concrete need."
+    ],
+    "rollback": "Research changes only canonical design/spec/tasks. No installing/upgrading providers, changing defaults, credentials or spend without separate scoped authority.",
+    "gate": "Pinned official source/API references plus read-only local version/capability probes when authorized; output exact adapter contracts or explicit blocked decisions."
+  },
+  {
+    "slug": "integration-github-ado-research",
+    "title": "GitHub, ADO, MCP and Aperture boundary research",
+    "zf": [
+      "19",
+      "07"
+    ],
+    "round": 1,
+    "deps": [
+      "ci-promotion-gates"
+    ],
+    "paths": [
+      "crates/engine/src/source_control.rs",
+      "crates/mcp/src/tools.rs",
+      "crates/mcp/src/jsonrpc.rs",
+      "docs/mcp.md",
+      "docs/fork-prd.md"
+    ],
+    "behavior": "Map current GitHub read/status and MCP behavior; verify exact ADO and Tailscale Aperture identities, versions, APIs and authority boundaries. Record external planning/review/specification systems as authoritative. Determine remote-only repository support separately from local storage convenience. Produce independently scoped adapter follow-ups per verified system, never a blanket integration permission.",
+    "cases": [
+      "MCP tool available but action outside profile/workflow scope: unavailable for that action.",
+      "External issue says Done while local output unverified: no acceptance transition.",
+      "Remote repository cannot be materialized locally: report capability limitation, not require local storage as product policy.",
+      "ADO/Brown endpoint discovered: no access attempt solely because Brown profile exists."
+    ],
+    "traps": [
+      "Do not treat Tailscale transport or Aperture access as workflow authority.",
+      "Do not fabricate ADO/GitHub parity.",
+      "Never dump credentials while probing versions."
+    ],
+    "rollback": "Research only, read-only probes scoped to approved systems. Adapter rollback must preserve external source of truth and reconcile effects.",
+    "gate": "Exact provider/version capability matrix and authoritative-source mapping; write probes await named sandbox authorization."
+  },
+  {
+    "slug": "integration-browser-research",
+    "title": "Browser provider isolation research",
+    "zf": [
+      "17",
+      "19"
+    ],
+    "round": 1,
+    "deps": [
+      "ci-promotion-gates"
+    ],
+    "paths": [
+      "crates/ui/src/browser/mod.rs",
+      "crates/ui/src/browser/model.rs",
+      "crates/ui/src/browser/macos.rs",
+      "scripts/run-macos-browser-fixture.sh",
+      "docs/fork-prd.md"
+    ],
+    "behavior": "Compare existing embedded browser capability and candidate automation providers against required profile/session isolation, explicit signed-in scope, stopping and redacted evidence. Record API/version and credential handling, select only after reviewed decision. Browser choice is a genuine open decision, not a reason to reopen approved isolation rules.",
+    "cases": [
+      "Provider supports screenshots but cannot isolate storage: does not satisfy session isolation.",
+      "Provider close command returns before tool action stops: cancellation remains unverified.",
+      "Provider needs cloud data upload: disclose data boundary before any private page use."
+    ],
+    "traps": [
+      "Do not assume Chrome profile equals work profile.",
+      "Do not pick a provider based only on available skill name."
+    ],
+    "rollback": "No user browser profile mutation during research; disposable fixtures only under authorized scope. Preserve existing browser unchanged.",
+    "gate": "Harmless local page/isolation probe where possible; unresolved provider decision explicitly blocks scoped-browser-capability implementation."
+  },
+  {
+    "slug": "foundation-compatibility",
+    "title": "Preserve direct sessions and two-device baseline",
+    "zf": [
+      "01",
+      "03"
+    ],
+    "round": 1,
+    "deps": [
+      "ci-promotion-gates",
+      "assignment-record"
+    ],
+    "paths": [
+      "crates/engine/tests/device_routing.rs",
+      "crates/engine/tests/local_profiles.rs",
+      "crates/engine/tests/restart_resume.rs",
+      "crates/rpc/src/lib.rs",
+      "apps/zeron/src/daemon.rs",
+      "openspec/changes/assignment-record/tasks.md"
+    ],
+    "behavior": "Codify current successful assignment persistence and ordinary-session behavior as regression gates. Preserve explicit null RPC successes, unsupported owner rejection, no local substitutes and no implicit delegation. Keep local private deployment distinct from hosted authentication acceptance. Verify exact installed artifacts rather than version string alone.",
+    "cases": [
+      "Owner restarts after acknowledged assignment: native second-device read/history match and owner unchanged.",
+      "Old owner lacks capability: assignment rejected explicitly, ordinary session unaffected.",
+      "Successful null response completes RPC rather than hanging.",
+      "Direct session opens without an assignment or hidden workflow launch."
+    ],
+    "traps": [
+      "Do not reimplement existing assignment-record.",
+      "Do not count private relay tests as WorkOS proof.",
+      "A version string shared by upstream/fork does not identify binary bytes."
+    ],
+    "rollback": "Use isolated data and preserve installed original app; service tests stop only owned fixtures. Do not reboot user machines without interruption authorization.",
+    "gate": "Existing native suites plus installed Mac/homelab test evidence reconciled to commit/binary identity; lifecycle caveats explicit."
+  },
+  {
+    "slug": "profile-access-enforcement",
+    "title": "Execution-time profile and resource authorization",
+    "zf": [
+      "02",
+      "15",
+      "19"
+    ],
+    "round": 2,
+    "deps": [
+      "work-profile-boundary"
+    ],
+    "paths": [
+      "crates/engine/src/rpc.rs",
+      "crates/engine/src/sessions.rs",
+      "crates/engine/src/agent_accounts.rs",
+      "crates/engine/src/repos.rs",
+      "crates/engine/src/terminals.rs",
+      "crates/harness/src/lib.rs",
+      "crates/engine/tests/local_profiles.rs"
+    ],
+    "behavior": "Validate work-profile policy at every engine entry point that reads protected content or launches tools: direct sessions, assignment operations, MCP, terminal, repository and credential selection. Bind allowed repositories, account references, tools, environments and action scope explicitly. Revalidate at launch and external-effect boundaries; policy revocation blocks new effects and enters the configured stop/hold path. Never serialize secret values into authority snapshots.",
+    "cases": [
+      "A trusted remote device supplies a foreign profile/account/repository ID: reject before any read or child process starts.",
+      "A symlink or renamed checkout escapes the approved repository root: reject the resolved target.",
+      "Policy changes after preflight but before dispatch: dispatch rechecks and denies stale authority.",
+      "An unavailable requested account/tool must report unavailable, not fall back to a global default.",
+      "Direct session and assignment invoking the same protected operation receive equivalent authorization decisions."
+    ],
+    "traps": [
+      "Connectivity, parent assignment and browser login grant no authority.",
+      "Do not enforce only in UI or only when creating a record.",
+      "Do not snapshot raw credentials or copy all host environment variables into children."
+    ],
+    "rollback": "Roll back enforcement code only with execution disabled for newly bound profiles. Never turn unknown policy into allow to preserve compatibility.",
+    "gate": "Instrument real engine dispatch boundaries and prove unauthorized paths perform zero protected reads/effects; approved isolated account succeeds."
+  },
+  {
+    "slug": "harness-preflight-binding",
+    "title": "Capability preflight and frozen run configuration",
+    "zf": [
+      "15",
+      "02"
+    ],
+    "round": 2,
+    "deps": [
+      "work-profile-boundary"
+    ],
+    "paths": [
+      "crates/engine/src/registry.rs",
+      "crates/harness/src/lib.rs",
+      "crates/proto/src/agent.rs",
+      "crates/engine/src/sessions.rs",
+      "crates/harness/src/codex/mod.rs",
+      "crates/harness/src/claude/mod.rs",
+      "crates/harness/src/acp/mod.rs"
+    ],
+    "behavior": "Produce comparable per-harness capability results with supported/unsupported/unknown distinctions and observed version. Freeze requested harness/model/account reference/environment/sandbox/resource configuration for a run. Inspect actual adapter behavior, especially Codex sandbox overrides and Claude/ACP auto-approval, before claiming enforcement. Unsupported requested isolation blocks dispatch. Configuration changes require explicit new run binding.",
+    "cases": [
+      "A harness advertises cancellation but cannot prove descendant stopping: report that capability as unverified, not supported.",
+      "Requested sandbox differs from actual process arguments: preflight fails and no agent starts.",
+      "Missing model/account/executable cannot silently route to another engineer.",
+      "A model or adapter version changes between preflight and launch: invalidate/recheck binding."
+    ],
+    "traps": [
+      "Jcode preference is not an already integrated SDK.",
+      "A mock descriptor proves serialization, not provider behavior.",
+      "Ordinary engineering uses the configured engineer once, not an implicit comparison."
+    ],
+    "rollback": "Preserve existing direct-session records; gate only capabilities whose policy requires proof. Retain prior configuration/version evidence and reject unsupported downgrade.",
+    "gate": "Adapter argument/protocol tests plus one authorized native harness preflight; token-spending execution requires separate bounded budget."
+  },
+  {
+    "slug": "revision-evidence-bindings",
+    "title": "Versioned outputs and evidence provenance",
+    "zf": [
+      "14",
+      "03"
+    ],
+    "round": 2,
+    "deps": [
+      "work-profile-boundary",
+      "assignment-record"
+    ],
+    "paths": [
+      "crates/proto/src/assignment.rs",
+      "crates/sync/src/store.rs",
+      "crates/engine/src/rpc.rs",
+      "crates/engine/src/run_journal.rs",
+      "crates/engine/tests/device_routing.rs"
+    ],
+    "behavior": "Introduce immutable output/candidate identities bound to exact assignment revision, source revision and dirty-tree content, frozen input/configuration/authorization/resource bindings, environment and native sessions. Evidence records check command, observations, outcome, limitations, timestamps and redacted artifacts. Separate structural, synthetic and real-workflow evidence. Editing inputs creates a new binding; it does not transfer approval.",
+    "cases": [
+      "Same Git commit with changed uncommitted content produces a different binding and stale prior evidence.",
+      "A candidate has artifacts but no passed check: show unverified, never accepted.",
+      "An artifact contains a secret or unrelated private content: reject/redact before persistence and alert safely.",
+      "Conflicting or missing evidence blocks dependent advancement rather than choosing the optimistic entry."
+    ],
+    "traps": [
+      "A hash identifies bytes; it does not prove a test ran.",
+      "Plane Done, agent completion and reviewer approval are different facts.",
+      "Existing evidence strings are not already a complete provenance schema."
+    ],
+    "rollback": "Add typed records alongside legacy strings; legacy remains explicitly unverified. Never backfill fabricated observations. Preserve immutable historical bindings on rollback.",
+    "gate": "Real create/edit/restart/read workflow proving stale invalidation and exact evidence retrieval, with synthetic fixtures separately tagged."
+  },
+  {
+    "slug": "run-resource-ledger",
+    "title": "Durable resource budgets and usage",
+    "zf": [
+      "15",
+      "12",
+      "16"
+    ],
+    "round": 3,
+    "deps": [
+      "harness-preflight-binding",
+      "profile-access-enforcement"
+    ],
+    "paths": [
+      "crates/engine/src/sessions.rs",
+      "crates/engine/src/run_journal.rs",
+      "crates/engine/src/agent_accounts/usage.rs",
+      "crates/proto/src/agent.rs",
+      "crates/sync/src/store.rs"
+    ],
+    "behavior": "Persist reservations and observed usage bound to run/profile/resource policy. Unknown price or usage remains unknown. Parent and child runs draw from one authorized shared budget without double counting; reservation/launch is atomic or recoverably reconciled. Budget exhaustion holds new work and invokes safe stopping for active work according to policy. No invented universal numeric budget.",
+    "cases": [
+      "Two concurrent runs race for the final reservation: at most one starts.",
+      "Owner restarts with a reserved-but-unconfirmed run: reconcile rather than spend reservation twice or refund blindly.",
+      "Provider omits cost: show unknown and enforce policy for unknown cost, never display zero.",
+      "Child usage rolls up once despite repeated provider events."
+    ],
+    "traps": [
+      "Estimated cost is not settled cost.",
+      "A task retry must not reset the budget.",
+      "No resource guarantee without a capability that enforces it."
+    ],
+    "rollback": "Append-only ledger migration; reconcile outstanding reservations before rollback. Do not discard charges or return allocations until effects are known.",
+    "gate": "Concurrent reservation/restart integration and provider fixture with duplicated/missing usage; real supported provider observations separately labelled."
+  },
+  {
+    "slug": "confirmed-stop-handoff",
+    "title": "Confirmed stopping and explicit human handoff",
+    "zf": [
+      "04",
+      "15",
+      "10"
+    ],
+    "round": 3,
+    "deps": [
+      "profile-access-enforcement",
+      "harness-preflight-binding"
+    ],
+    "paths": [
+      "crates/engine/src/sessions.rs",
+      "crates/harness/src/lib.rs",
+      "crates/engine/src/terminals.rs",
+      "crates/engine/src/rpc.rs",
+      "crates/engine/tests/turn_quiesce.rs",
+      "crates/engine/tests/self_continued_quiesce.rs"
+    ],
+    "behavior": "Define pause-requested, stopping, stopped-confirmed, human-owned, handback-requested and resumable states with guarded transitions. Stop receipts are observations, not proof. Track native process/session and descendant/tool activity for supported harnesses. Hand takeover only after stop proof; unknown remote/process status remains held. Human handback is explicit and revalidates authority/configuration.",
+    "cases": [
+      "Cancel RPC acknowledges while a spawned child continues writing: status stays stopping and takeover is refused.",
+      "Network disappears during stop: mark uncertain, block conflicting work, keep unrelated isolated work running.",
+      "Repeated pause/handback commands are idempotent without duplicate launches.",
+      "A stale handback for an older run generation cannot resume the replacement run."
+    ],
+    "traps": [
+      "Do not equate stream closure, UI spinner ending or cancellation token delivery with stopped.",
+      "Do not kill unrelated sessions to simplify cancellation.",
+      "Priority never authorizes interruption."
+    ],
+    "rollback": "Persist lifecycle transition before acknowledgment. Downgrade active/uncertain work to hold; no replay of unconfirmed external effects.",
+    "gate": "Real harmless subprocess with descendant writes proves last write/exit boundary; native harness-specific stopping requires its own evidence."
+  },
+  {
+    "slug": "workflow-version-selection",
+    "title": "Versioned workflow definitions and selection",
+    "zf": [
+      "05",
+      "06"
+    ],
+    "round": 3,
+    "deps": [
+      "revision-evidence-bindings",
+      "work-profile-boundary"
+    ],
+    "paths": [
+      "crates/proto/src/assignment.rs",
+      "crates/sync/src/store.rs",
+      "crates/engine/src/rpc.rs",
+      "crates/engine/src/profile.rs"
+    ],
+    "behavior": "Define independently versioned workflows with stages, agent choices, checks, failure policy, gates and autonomy. Ship the PRD starting sequence without forcing investigation-only work to produce code. Select explicit assignment override, else repository default, else profile default; if none exists hold with a clear configuration error. Persist selected version and explanation before launch. Suggestions create optional updates; active definitions never mutate silently.",
+    "cases": [
+      "Repository and profile defaults differ: repository wins and reason is visible.",
+      "Assignment override selects inaccessible workflow: reject rather than bypass profile policy.",
+      "Workflow updated while assignment runs: old version remains bound unless explicitly changed and revalidated.",
+      "An investigation-only workflow ends with findings and no candidate/delivery stage."
+    ],
+    "traps": [
+      "Do not use the newest workflow version implicitly on resume.",
+      "No single global mutable pipeline for every workflow.",
+      "Triggers later name a version/selection contract rather than reuse interactive guessing."
+    ],
+    "rollback": "Immutable versions and additive references; old readers fail explicitly on unsupported workflow versions. Roll back default pointers without rewriting active runs.",
+    "gate": "Precedence, version pinning, invalid override and restart tests through owner RPC; UI explanation delivered by presentation changes."
+  },
+  {
+    "slug": "safe-resume-reconciliation",
+    "title": "Recovery with continuing authority and effect reconciliation",
+    "zf": [
+      "04",
+      "14"
+    ],
+    "round": 4,
+    "deps": [
+      "confirmed-stop-handoff",
+      "run-resource-ledger"
+    ],
+    "paths": [
+      "crates/engine/src/run_journal.rs",
+      "crates/engine/src/sessions.rs",
+      "crates/engine/src/lib.rs",
+      "crates/engine/tests/restart_resume.rs",
+      "crates/engine/tests/session_publication.rs"
+    ],
+    "behavior": "On crash/reconnect reconstruct frozen configuration, authorization, native session identity and effect uncertainty. Resume only a known-safe still-authorized continuation. Unknown external effects hold for Leo with evidence and reconciliation options. Keep interrupted, stopped, failed and outcome-confirmed distinct. Direct-session recovery must obey the same boundary.",
+    "cases": [
+      "Crash after dispatch but before receipt: no blind resend of an external mutation.",
+      "Profile permission revoked while owner is down: restart cannot auto-resume old authority.",
+      "Journal has torn final entry: recover known prefix and mark missing effects uncertain.",
+      "Native session unavailable: do not substitute a new account/environment or claim continuation."
+    ],
+    "traps": [
+      "Command deduplication is not exactly-once delivery.",
+      "A stale-session flag is not resume authorization.",
+      "Do not reset evidence/usage on restart."
+    ],
+    "rollback": "Keep original journal immutable or backed up; new recovery metadata additive. If reader cannot understand uncertainty state, fail closed and retain data.",
+    "gate": "Crash-boundary subprocess tests and authorized native restart with revoked-policy negative case; no external side effect replay."
+  },
+  {
+    "slug": "verification-acceptance-gates",
+    "title": "Configured verification and acceptance transitions",
+    "zf": [
+      "05",
+      "14",
+      "11"
+    ],
+    "round": 4,
+    "deps": [
+      "workflow-version-selection",
+      "revision-evidence-bindings",
+      "profile-access-enforcement"
+    ],
+    "paths": [
+      "crates/engine/src/rpc.rs",
+      "crates/proto/src/assignment.rs",
+      "crates/sync/src/store.rs",
+      "crates/engine/src/run_journal.rs"
+    ],
+    "behavior": "Keep agent-finished, verified, accepted, delivered and outcome-confirmed separate. Evaluate configured checks against exact bound output versions. Human or autonomous acceptance is allowed only as workflow policy specifies. Preserve external reviewer/OpenSpec/planning authority; in-product status cannot overwrite it. Missing/stale/contradictory evidence holds dependent transitions.",
+    "cases": [
+      "Agent reports success while required check fails: verified/accepted stay false.",
+      "Autonomous gate with all required checks and valid policy accepts without inventing a universal manual approval.",
+      "Human approval for output A cannot apply to changed output B.",
+      "External reviewer rejects a required review while internal tests pass: gate remains held."
+    ],
+    "traps": [
+      "CI success alone is not every product acceptance condition.",
+      "Acceptance grants no blanket delivery permission.",
+      "Do not combine booleans that permit impossible state combinations."
+    ],
+    "rollback": "Persist decision and inputs atomically, append revisions instead of rewriting past approvals. Rollback holds unsupported decisions.",
+    "gate": "Owner RPC transitions with stale/revoked/external-rejection cases and restart at decision commit boundary."
+  },
+  {
+    "slug": "exception-attention",
+    "title": "Immediate grouped safety exceptions",
+    "zf": [
+      "18",
+      "04",
+      "09"
+    ],
+    "round": 4,
+    "deps": [
+      "confirmed-stop-handoff",
+      "revision-evidence-bindings"
+    ],
+    "paths": [
+      "crates/ui/src/notify.rs",
+      "crates/ui/src/state.rs",
+      "crates/engine/src/rpc.rs",
+      "crates/sync/src/store.rs"
+    ],
+    "behavior": "Persist and group actionable exceptions with source, profile, affected work, blocker/uncertainty and safe next action. Routine progress goes to activity, not urgent alerts. Notification delivery/acknowledgment does not accept work, grant authority or resume execution. Safety features cannot defer essential alerts until morning briefings ship.",
+    "cases": [
+      "Repeated same stop uncertainty creates one grouped alert with updated observations, not an alert storm.",
+      "Notification delivery fails: blocked state remains durable and visible after restart.",
+      "User dismisses alert: execution remains held.",
+      "Profile-private alert must not leak into another profile destination."
+    ],
+    "traps": [
+      "Do not use notification click as approval.",
+      "No silent suppression of safety blockers.",
+      "System One alert is not an authorization grant."
+    ],
+    "rollback": "Keep exception records even when delivery disabled. Fallback in-product activity/blocked state remains; no auto-resume during rollback.",
+    "gate": "Native notification/activity integration plus delivery-failure/restart/grouping and cross-profile redaction assertions."
+  },
+  {
+    "slug": "manual-investigation-runner",
+    "title": "Manual bounded investigation workflow",
+    "zf": [
+      "03",
+      "05",
+      "06",
+      "08"
+    ],
+    "round": 5,
+    "deps": [
+      "safe-resume-reconciliation",
+      "verification-acceptance-gates",
+      "run-resource-ledger"
+    ],
+    "paths": [
+      "crates/engine/src/sessions.rs",
+      "crates/engine/src/rpc.rs",
+      "crates/proto/src/assignment.rs",
+      "crates/sync/src/store.rs",
+      "crates/engine/tests/restart_resume.rs"
+    ],
+    "behavior": "Explicitly launch one configured investigation for an assignment after profile/preflight/resource/selection gates. Bind native session IDs and observations; findings can be the terminal output. Preserve objective and permissions through replacement, with stop proof for affected old execution. Keep direct sessions runnable without implicit assignments. No coding/delivery authorization inferred from investigation.",
+    "cases": [
+      "Double-click/retried launch yields one run identity and one resource reservation.",
+      "Replacement adds linked session while preserving findings/history and allowed actions.",
+      "Investigation ends with checked findings and unresolved questions, without requiring code changes.",
+      "Direct session opens normally without automatic assignment creation."
+    ],
+    "traps": [
+      "Do not build a generic autonomous executor before safety prerequisites pass.",
+      "Investigate does not mean implement.",
+      "Store creation/promotion must still perform zero harness launches."
+    ],
+    "rollback": "Existing assignments remain records until explicit launch. Pause/hold active runs before downgrade; preserve run IDs and findings.",
+    "gate": "First real end-to-end investigation on harmless local repository: launch, stop, replace, restart, accepted findings; bounded authorized harness budget."
+  },
+  {
+    "slug": "integration-provider-adapters",
+    "title": "Verified provider adapters and authority preservation",
+    "zf": [
+      "19",
+      "15"
+    ],
+    "round": 5,
+    "deps": [
+      "integration-harness-observer-research",
+      "integration-github-ado-research",
+      "profile-access-enforcement",
+      "harness-preflight-binding",
+      "confirmed-stop-handoff"
+    ],
+    "paths": [
+      "crates/harness/src/lib.rs",
+      "crates/engine/src/registry.rs",
+      "crates/mcp/src/tools.rs",
+      "crates/engine/src/source_control.rs",
+      "crates/engine/src/rpc.rs"
+    ],
+    "behavior": "Instantiate one child adapter change per researched concrete provider and action set before implementation. Each child freezes documented API/version, maps native identity/status/stop/effect semantics, honors profile and external authority, and has real authorized acceptance. This boundary is a fan-out contract, not permission to implement all adapters in one patch. MCP exposure must reuse engine authorization, not bypass it.",
+    "cases": [
+      "Adapter returns unsupported for missing stop/isolation instead of claiming a generic interface makes it safe.",
+      "External planning/review status changes: preserve source provenance and never overwrite from local completion.",
+      "Provider upgrade changes contract: capability evidence invalidated and affected launches held."
+    ],
+    "traps": [
+      "One mega-adapter is not a bounded change.",
+      "Do not invent start/stop methods absent research proof.",
+      "Integration availability does not authorize mutations."
+    ],
+    "rollback": "Per-provider disable switch and native state/effect reconciliation before removal. Preserve other adapters and direct sessions.",
+    "gate": "One real harmless authorized workflow per selected adapter and failure/unknown capability checks. Unselected providers remain blocked, not marked complete."
+  },
+  {
+    "slug": "assignment-desktop-surface",
+    "title": "Desktop assignment and intervention surface",
+    "zf": [
+      "01",
+      "02",
+      "03",
+      "04",
+      "05",
+      "06",
+      "14",
+      "18"
+    ],
+    "round": 6,
+    "deps": [
+      "manual-investigation-runner"
+    ],
+    "paths": [
+      "crates/ui/src/state.rs",
+      "crates/ui/src/shell.rs",
+      "crates/ui/src/settings.rs",
+      "crates/ui/src/notify.rs",
+      "crates/proto/src/assignment.rs"
+    ],
+    "behavior": "Add explicit create/promote/read/history/launch controls alongside direct sessions. Before launch show profile, selected workflow/version/reason, permissions, resources and unavailable capabilities. Show stopping versus confirmed stop, takeover/handback, evidence class and blocked reasons. UI location must be reviewed using existing navigation conventions before implementation; preserve keyboard and screen-reader operation.",
+    "cases": [
+      "Open ordinary conversation: no forced assignment administration.",
+      "Promote requires explicit action and preserves transcript.",
+      "Disconnected owner or old capability: show unavailable/unsupported, never local duplicate.",
+      "Screen-reader/keyboard user can inspect workflow reason and stop uncertainty without relying on color."
+    ],
+    "traps": [
+      "Do not mark all linked agents done as assignment accepted.",
+      "Do not hide uncertainty behind a green completion badge.",
+      "Do not independently invent a sidebar/navigation redesign."
+    ],
+    "rollback": "Feature-gate presentation, keep stored records intact; remove UI entry points without deleting assignments. Preserve old client capability behavior.",
+    "gate": "Native GPUI workflow with actual owner/client, keyboard/focus/accessibility checks and zero implicit assignments."
+  },
+  {
+    "slug": "delivery-effect-ledger",
+    "title": "Independent delivery authorization and effect reconciliation",
+    "zf": [
+      "07",
+      "04",
+      "14"
+    ],
+    "round": 6,
+    "deps": [
+      "verification-acceptance-gates",
+      "safe-resume-reconciliation"
+    ],
+    "paths": [
+      "crates/engine/src/source_control.rs",
+      "crates/engine/src/change_requests.rs",
+      "crates/engine/src/rpc.rs",
+      "crates/sync/src/store.rs",
+      "crates/proto/src/assignment.rs"
+    ],
+    "behavior": "Define independently callable push/create-PR/merge/release/deploy/publish intents, each bound to exact candidate, destination, account reference and workflow action policy. Persist planned/dispatched/observed/uncertain/reconciled outcome states. An ambiguous effect is queried/reconciled before another dispatch; dedupe keys are not exactly-once claims. This unit defines the contract, not every provider adapter.",
+    "cases": [
+      "Accepted candidate without deploy permission cannot deploy.",
+      "Autonomous action policy may authorize one action without universal per-action dialog.",
+      "Crash after provider mutation before acknowledgment: uncertain record, query existing effect before retry.",
+      "Destination/account changes after approval: new authorization binding required."
+    ],
+    "traps": [
+      "Do not treat PR status polling as delivery orchestration.",
+      "Do not embed provider tokens in ledger or evidence.",
+      "Deploy is not always cloud hosting; preserve explicit destination semantics."
+    ],
+    "rollback": "Append-only effect records retained across downgrade. Disable new dispatch if reconciliation unsupported; never delete uncertainty to unblock work.",
+    "gate": "Controlled local external-effect fixture with crash boundaries, plus each adapter's separate authorized real destination gate."
+  },
+  {
+    "slug": "conflict-admission-observer",
+    "title": "Conflict admission for assignments and direct sessions",
+    "zf": [
+      "09",
+      "02",
+      "18"
+    ],
+    "round": 6,
+    "deps": [
+      "manual-investigation-runner",
+      "revision-evidence-bindings"
+    ],
+    "paths": [
+      "crates/engine/src/sessions.rs",
+      "crates/engine/src/rpc.rs",
+      "crates/engine/src/repos.rs",
+      "crates/proto/src/assignment.rs",
+      "crates/sync/src/store.rs"
+    ],
+    "behavior": "At proposal admission inspect overlapping changes, incompatible assumptions, shared resources and unmet dependencies. Include direct sessions without converting them into assignments. Represent limited outside-Zeron visibility. Different files can conflict; independent work proceeds. Recheck scope changes and shared-action boundaries. Uncertain conflicts require another reviewer; unresolved uncertainty holds affected work and alerts. System One is observer, not execution authority; unverified adapter can only return unknown.",
+    "cases": [
+      "Disjoint files share one database migration invariant: identify conflict or uncertainty, not automatic independence.",
+      "Two proposals race admission: no overlapping exclusive lease granted twice.",
+      "One uncertain conflict holds only affected work, not all queues.",
+      "Reviewer unavailable or external work invisible: expose unknown and hold affected scope."
+    ],
+    "traps": [
+      "No filename-only lock as complete conflict analysis.",
+      "No observer grant of permissions or priority changes.",
+      "Do not fabricate SystemOne API or replace engineering harness with it."
+    ],
+    "rollback": "Admission records/leases durable; downgrade stops new overlapping launches, preserves already-running ownership and uncertainty.",
+    "gate": "Concurrent direct-session plus assignment admission with resource conflicts, unknown observer and changed-scope checks; provider-specific SystemOne evidence separately required."
+  },
+  {
+    "slug": "engineering-stage-runner",
+    "title": "Approved proposal implementation and verification stages",
+    "zf": [
+      "05",
+      "14",
+      "15"
+    ],
+    "round": 6,
+    "deps": [
+      "manual-investigation-runner",
+      "verification-acceptance-gates",
+      "run-resource-ledger"
+    ],
+    "paths": [
+      "crates/engine/src/sessions.rs",
+      "crates/engine/src/rpc.rs",
+      "crates/proto/src/assignment.rs",
+      "crates/engine/src/repos.rs",
+      "crates/sync/src/store.rs"
+    ],
+    "behavior": "Extend the bounded investigation runner to Understand, Investigate, Propose, Implement and Verify transitions under a pinned workflow. A proposal must pass its configured gate before any implementation dispatch. Bind exact approved scope, engineer, repository, baseline and resource policy; ordinary implementation uses that engineer once. Produce a new revision-bound candidate from observed working-tree changes, then run independent configured verification. Deliver and Confirm outcome invoke their separately gated contracts, not implicit inline side effects.",
+    "cases": [
+      "Investigation suggests code changes before proposal acceptance: no implementation launch.",
+      "Accepted proposal changes repository or allowed actions: implementation refuses stale scope and requests new gate.",
+      "Engineer finishes with uncommitted changes: candidate binds exact dirty tree, not just HEAD.",
+      "Verification fails: preserve candidate/evidence and follow configured retry or hold policy within original budget, no automatic delivery.",
+      "Workflow marks a stage optional: skip only by recorded policy, not agent improvisation."
+    ],
+    "traps": [
+      "Do not equate an investigation executor with the full engineering workflow.",
+      "Do not launch comparison entrants for an ordinary stage.",
+      "Do not conflate stage success, candidate acceptance and delivery authorization."
+    ],
+    "rollback": "Hold active stage execution with confirmed stopping before downgrade; preserve candidate bytes, run bindings and evidence. No reset of user working tree as rollback.",
+    "gate": "Real harmless local repository: accepted proposal to one engineer implementation, exact candidate capture, failing then passing independent check, no unauthorized delivery."
+  },
+  {
+    "slug": "assignment-mobile-parity",
+    "title": "Mobile compatible assignment control/read surface",
+    "zf": [
+      "01",
+      "03",
+      "04",
+      "06",
+      "14"
+    ],
+    "round": 7,
+    "deps": [
+      "assignment-desktop-surface"
+    ],
+    "paths": [
+      "apps/ios/Zeron/Sync/DeviceRelayClient.swift",
+      "apps/ios/Zeron/Sync/WorkspaceStore.swift",
+      "apps/ios/Zeron/Views/SessionView.swift",
+      "apps/ios/ZeronTests/DeviceRelayClientTests.swift",
+      "crates/proto/src/assignment.rs"
+    ],
+    "behavior": "Add reviewed mobile parity for the accepted desktop assignment contract, with explicit capability negotiation and owner routing. Preserve direct sessions and display profile/workflow/evidence/stop state correctly. Mobile reconnect must not repeat launches or delivery. Define supported controls explicitly in design rather than silently treating unsupported controls as success.",
+    "cases": [
+      "Old owner lacks assignment capability: ordinary session still works, assignment operation reports unsupported.",
+      "Phone loses connection after launch request: reconcile run identity, no duplicate launch.",
+      "Stale phone view submits old revision: conflict and refresh, no overwrite.",
+      "Stop receipt remains stopping until owner confirms cessation."
+    ],
+    "traps": [
+      "Do not reuse registry LWW as authoritative assignment history.",
+      "Do not claim physical-device acceptance from Swift decoding tests only."
+    ],
+    "rollback": "Additive decoding and capability flags; retain previous compatible read path. No forced desktop data migration for mobile layout.",
+    "gate": "Existing iOS unit CI plus authorized simulator/device-to-owner workflow and disconnected/stale-revision checks."
+  },
+  {
+    "slug": "git-delivery-actions",
+    "title": "Git push and change-request create/merge actions",
+    "zf": [
+      "07",
+      "19"
+    ],
+    "round": 7,
+    "deps": [
+      "delivery-effect-ledger",
+      "integration-github-ado-research"
+    ],
+    "paths": [
+      "crates/engine/src/source_control.rs",
+      "crates/engine/src/change_requests.rs",
+      "crates/engine/src/repos.rs",
+      "crates/engine/src/rpc.rs",
+      "crates/engine/tests/github_cli_login_shell.rs"
+    ],
+    "behavior": "Implement push, create change request and merge as independently authorized actions using verified provider methods. Freeze remote/ref/repository/account/candidate; observe exact delivered commit. Support required GitHub/ADO providers only when their research and native acceptance are complete; unsupported remains explicit. Respect protected branches and external review authority.",
+    "cases": [
+      "Remote URL changes between proposal and push: block and reauthorize.",
+      "PR creation times out after successful creation: discover matching external identity, do not create duplicate.",
+      "Merge observes newer head than accepted candidate: reject stale candidate.",
+      "Branch protection rejects merge: surface provider decision; never bypass or force push."
+    ],
+    "traps": [
+      "No universal push-on-accept.",
+      "GitHub support does not imply ADO parity.",
+      "No force push or deleting user branches as rollback."
+    ],
+    "rollback": "Disable action dispatch, preserve external links/effect ledger. Rollback cannot undo a pushed/merged effect by pretending it never occurred.",
+    "gate": "Local bare-remote push first; actual authorized sandbox GitHub/ADO create/merge with exact head verification and provider failure paths."
+  },
+  {
+    "slug": "release-deploy-publish-actions",
+    "title": "Release, deploy and publish adapters",
+    "zf": [
+      "07",
+      "19"
+    ],
+    "round": 7,
+    "deps": [
+      "delivery-effect-ledger",
+      "integration-github-ado-research"
+    ],
+    "paths": [
+      "scripts/package-linux.sh",
+      "scripts/package-macos.sh",
+      "scripts/package-windows.ps1",
+      ".github/workflows/release.yml",
+      "apps/zeron/src/daemon.rs",
+      "crates/engine/src/project_actions.rs"
+    ],
+    "behavior": "Implement individually callable release/deploy/publish against explicitly selected destinations and verified contracts. Preserve build artifact identity, target environment, authorization and post-delivery observation. Local installation is a valid deploy target; hosted replacement is never inferred. Full release-candidate management beyond these actions remains outside approved scope.",
+    "cases": [
+      "Artifact built from revision A cannot be presented as delivery of B.",
+      "Install fails after staging: retain previous executable/data and report rollback result.",
+      "Publish returns success but target serves old content: delivered may be observed but outcome-confirmed fails.",
+      "Unsupported signing/provider credentials: blocked acceptance, no disabling security or password resets."
+    ],
+    "traps": [
+      "Do not trigger existing release workflow just to validate a plan.",
+      "Deploy success is not confirmed user outcome.",
+      "Do not invent an entire release train/lifecycle."
+    ],
+    "rollback": "Per-target rollback recipe required before dispatch; back up user data and executable, never destructive blanket cleanup. External irreversible effects require explicit reconciliation.",
+    "gate": "Harmless local install with service recovery and rollback, then separately authorized external destinations only when selected."
+  },
+  {
+    "slug": "priority-backlog",
+    "title": "Priority, blockers and non-preemptive urgent work",
+    "zf": [
+      "10",
+      "09"
+    ],
+    "round": 7,
+    "deps": [
+      "conflict-admission-observer",
+      "confirmed-stop-handoff"
+    ],
+    "paths": [
+      "crates/engine/src/rpc.rs",
+      "crates/engine/src/sessions.rs",
+      "crates/sync/src/store.rs",
+      "crates/proto/src/assignment.rs"
+    ],
+    "behavior": "Queue conflicted proposals with blocker type/reason and explicit priority. Among eligible work sort priority then oldest admission; Leo override recorded. Observer recommendations never silently change priority. Reassess on blocker resolution. Urgent conflicting work waits unless Leo explicitly requests interruption and actual stop is confirmed. Dependency-wait and conflict-wait are different states.",
+    "cases": [
+      "Old blocked high-priority item does not stall lower-priority unrelated eligible work.",
+      "Equal-priority eligible items retain oldest-first order across restart.",
+      "Urgent conflict cannot launch on mere cancellation acknowledgment.",
+      "Priority update racing admission produces one auditable order, not duplicate dispatch."
+    ],
+    "traps": [
+      "No automatic preemption because number is high.",
+      "No global serialization of independent work.",
+      "No changing priority based on model enthusiasm."
+    ],
+    "rollback": "Persist queue identity/order/blockers; freeze dispatch on downgrade and rebuild indices without losing original admission timestamps.",
+    "gate": "Concurrent queue/restart integration and actual-stop boundary with direct sessions included."
+  },
+  {
+    "slug": "accepted-output-dependencies",
+    "title": "Exact-version output dependencies",
+    "zf": [
+      "11",
+      "14"
+    ],
+    "round": 7,
+    "deps": [
+      "verification-acceptance-gates",
+      "conflict-admission-observer"
+    ],
+    "paths": [
+      "crates/proto/src/assignment.rs",
+      "crates/sync/src/store.rs",
+      "crates/engine/src/rpc.rs"
+    ],
+    "behavior": "Bind dependency edges to accepted stage-output versions, not just whole assignment completion. Reject cycles and foreign-profile edges. Allow independent work to overlap. Upstream replacement/revocation triggers downstream reassessment before next dependent action; prior execution effects are preserved and never retroactively called safe.",
+    "cases": [
+      "Investigation output accepted while parent assignment not done: authorized dependent stage may start.",
+      "Upstream new revision cannot silently substitute into already-bound downstream run.",
+      "Cycle or self-edge rejected atomically, no partial graph change.",
+      "Accepted evidence later contradicted: affected downstream waits/reconciles, independent branch continues."
+    ],
+    "traps": [
+      "Do not bind a mutable latest pointer.",
+      "Do not block every child until whole parent finishes.",
+      "Reassessment is not automatic rollback of external effects."
+    ],
+    "rollback": "Keep immutable edge/output revisions and append invalidations. Downgrade blocks unknown graph semantics, not deleting edges.",
+    "gate": "Graph transaction/restart tests and real two-stage workflow proving exact-version binding and invalidation."
+  },
+  {
+    "slug": "scoped-browser-capability",
+    "title": "Isolated browser sessions and explicit signed-in scope",
+    "zf": [
+      "17",
+      "02",
+      "04",
+      "14"
+    ],
+    "round": 7,
+    "deps": [
+      "profile-access-enforcement",
+      "confirmed-stop-handoff",
+      "revision-evidence-bindings",
+      "integration-browser-research"
+    ],
+    "paths": [
+      "crates/ui/src/browser/mod.rs",
+      "crates/ui/src/browser/model.rs",
+      "crates/ui/src/browser/macos.rs",
+      "crates/engine/src/rpc.rs",
+      "crates/proto/src/assignment.rs"
+    ],
+    "behavior": "Browser sessions isolated by default, bound to work profile plus assignment or direct session. Signed-in session reuse is explicit and scope-limited. Browser authentication grants no mutation authority; actions use workflow/profile gates. Redact secrets and unrelated content from evidence. Do not switch browser/account/provider on failure. Integrate only provider selected by research decision.",
+    "cases": [
+      "Two profiles navigate same domain: cookie/storage/session state does not cross.",
+      "Signed-in page contains instructions to change account or publish: page data cannot authorize action.",
+      "Requested browser/account unavailable: fail visibly without fallback.",
+      "Pause browser automation while an action is pending: preserve effect uncertainty and require stop proof."
+    ],
+    "traps": [
+      "Embedded preview WebView is not necessarily isolated automation.",
+      "Do not export all cookies or private screenshots as evidence.",
+      "Never reset a password."
+    ],
+    "rollback": "Close only owned sessions, keep user browser untouched. Revoke scoped handles on rollback, no destructive global profile cleanup.",
+    "gate": "Actual chosen provider with two isolated browser profiles and harmless local authenticated fixture; external mutation needs separate scoped authorization."
+  },
+  {
+    "slug": "multi-repository-breakdown",
+    "title": "Bounded parent/child repository objectives",
+    "zf": [
+      "12",
+      "02",
+      "15"
+    ],
+    "round": 8,
+    "deps": [
+      "accepted-output-dependencies",
+      "priority-backlog",
+      "run-resource-ledger",
+      "workflow-version-selection"
+    ],
+    "paths": [
+      "crates/proto/src/assignment.rs",
+      "crates/sync/src/store.rs",
+      "crates/engine/src/rpc.rs",
+      "crates/engine/src/repos.rs"
+    ],
+    "behavior": "Parent objective groups linked repository-scoped children with independent workflow, permissions, candidate/evidence and delivery status. Agent breakdown is proposal until its workflow gate authorizes creation. Leo can inspect/edit. Children stay inside parent objective, approved repositories/profile and shared budget. Grouping neither grants cross-profile access nor requires simultaneous deployment.",
+    "cases": [
+      "Agent proposes an extra unapproved repository: retain proposal but do not create executable child.",
+      "Autonomous breakdown within configured scope can create children without imposing universal human confirmation.",
+      "Concurrent child reservations cannot exceed parent budget.",
+      "Editing breakdown after a child starts preserves prior evidence/effects and revalidates changed dependencies."
+    ],
+    "traps": [
+      "Do not clone parent permissions as unrestricted child authority.",
+      "Do not merge children into one worktree or one evidence revision.",
+      "Do not require all repositories deploy at once."
+    ],
+    "rollback": "Add parent links without rewriting existing assignments; retain orphan/partial delivery status on rollback and hold new dispatch.",
+    "gate": "Two real local repositories with independent children, one dependency and budget/scope-denied child; restart restores editable breakdown."
+  },
+  {
+    "slug": "opt-in-trigger-launch",
+    "title": "Provenance-bound automatic triggers",
+    "zf": [
+      "08",
+      "06",
+      "09",
+      "10"
+    ],
+    "round": 8,
+    "deps": [
+      "priority-backlog",
+      "accepted-output-dependencies",
+      "manual-investigation-runner"
+    ],
+    "paths": [
+      "crates/mcp/src/tools.rs",
+      "crates/engine/src/rpc.rs",
+      "crates/sync/src/store.rs",
+      "crates/proto/src/assignment.rs"
+    ],
+    "behavior": "Add opt-in event triggers with provenance, explicit workflow binding and stable event identity. A trigger prepares approval or launches only within configured authority/profile/resources/admission. Duplicate/reordered events do not duplicate launch. Manual launch remains available. No comparisons may be triggered automatically.",
+    "cases": [
+      "Same event delivered after restart yields one prepared/run identity.",
+      "Trigger names missing workflow version: hold, do not infer current default.",
+      "Event payload asks to expand permissions: treat as untrusted data, not policy.",
+      "Disabled trigger receives backlog: no launch; enabling does not replay historical backlog unless explicitly selected."
+    ],
+    "traps": [
+      "Opt-in is not enabled by installation.",
+      "No background comparisons.",
+      "Authentication of webhook does not authorize its requested mutation."
+    ],
+    "rollback": "Disable dispatch before rollback; retain event dedupe/provenance and pending approvals. Do not clear dedupe to recover a stuck event.",
+    "gate": "Local event replay/reorder/concurrent delivery with actual runner admission and resource-denied case; selected external event source separately verified."
+  },
+  {
+    "slug": "engineering-comparisons",
+    "title": "Explicit isolated engineering comparisons",
+    "zf": [
+      "16",
+      "15",
+      "14"
+    ],
+    "round": 8,
+    "deps": [
+      "run-resource-ledger",
+      "verification-acceptance-gates",
+      "safe-resume-reconciliation",
+      "integration-harness-observer-research"
+    ],
+    "paths": [
+      "crates/engine/src/repos.rs",
+      "crates/engine/src/sessions.rs",
+      "crates/proto/src/assignment.rs",
+      "crates/sync/src/store.rs"
+    ],
+    "behavior": "Only user-launched comparisons with task, entrants and budget. Freeze identical baseline/input/configuration bindings and isolate each attempt. Report disclosed configurations, cost unknowns, independent correctness results and infrastructure failures separately. Comparison recommends; Leo alone approves routing/default changes. No automatic delivery or winning-run adoption.",
+    "cases": [
+      "Entrants start from different dirty trees: admission fails before spending.",
+      "One entrant infrastructure fails: do not rank it as engineering incorrectness without evidence.",
+      "Fast candidate fails independent correctness check: cannot win by speed alone.",
+      "Winner selected: defaults unchanged and delivery not triggered."
+    ],
+    "traps": [
+      "Ordinary run must not secretly execute multiple engineers.",
+      "Never compare on shared writable worktree.",
+      "A provider marketing capability is not tested isolation."
+    ],
+    "rollback": "Keep isolated attempt directories/evidence until retention authorized. Abort/stop-confirm all attempts before cleanup; preserve external effects and costs.",
+    "gate": "Two bounded harmless local entrants on identical baseline, actual isolation tests, independent verifier and no-default-change assertions."
+  },
+  {
+    "slug": "profile-briefings",
+    "title": "Profile-configurable routine briefings",
+    "zf": [
+      "18"
+    ],
+    "round": 8,
+    "deps": [
+      "exception-attention",
+      "workflow-version-selection"
+    ],
+    "paths": [
+      "crates/ui/src/settings/notifications.rs",
+      "crates/ui/src/notify.rs",
+      "crates/sync/src/store.rs",
+      "crates/engine/src/rpc.rs"
+    ],
+    "behavior": "Provide morning/routine briefing schedule and destinations per profile with explicit configuration. Summarize progress, blockers, uncertainty and accepted/delivered/outcome states distinctly. Delivery provider/channel selection must be recorded before adapter implementation. Missed schedule, timezone/DST and duplicate delivery are explicit policies; no guessed universal morning time.",
+    "cases": [
+      "Clock crosses DST or device was offline: apply configured missed-run policy once, not duplicate delivery.",
+      "Destination revoked: retain failed-delivery state without sending to a fallback account.",
+      "Briefing reports agent-finished but unverified output as unverified.",
+      "Routine progress stays activity while urgent exception still alerts immediately."
+    ],
+    "traps": [
+      "Do not schedule unsolicited messages by default.",
+      "No alert text implies authority to resume.",
+      "Do not leak one profile into another briefing."
+    ],
+    "rollback": "Disable schedules before rollback, preserve delivery identity/history and user configuration. No replay of past messages without explicit policy.",
+    "gate": "Deterministic clock/scheduler tests plus actual authorized local notification destination; external email/chat destination separately authorized."
+  },
+  {
+    "slug": "combined-outcome-checks",
+    "title": "Parent outcome verification over delivered versions",
+    "zf": [
+      "13",
+      "12",
+      "14"
+    ],
+    "round": 9,
+    "deps": [
+      "multi-repository-breakdown",
+      "git-delivery-actions",
+      "release-deploy-publish-actions"
+    ],
+    "paths": [
+      "crates/proto/src/assignment.rs",
+      "crates/sync/src/store.rs",
+      "crates/engine/src/rpc.rs"
+    ],
+    "behavior": "Parent workflow evaluates combined checks across exact required child output and delivered versions before objective completion. Finished children are insufficient. Partial delivery visible; failed child blocks dependents only. Configured human/autonomous outcome gates apply. Superseded child outputs cannot silently count.",
+    "cases": [
+      "All child tasks done but integration endpoint fails: parent outcome remains unconfirmed.",
+      "One child delivered old accepted revision while another expects new API: combined check fails with exact mismatch.",
+      "Optional independent child failure does not automatically stop unrelated required work; requiredness is explicit.",
+      "Partial deployment survives restart and remains visible with reconciliation options."
+    ],
+    "traps": [
+      "No completion percentage as proof of combined correctness.",
+      "No replacing failed child output with previous version silently.",
+      "No universal simultaneous release gate."
+    ],
+    "rollback": "Persist combined-check input set and observations immutably; rollback withdraws unsupported completion claims but preserves delivery facts.",
+    "gate": "Real two-repository local consumer/provider compatibility check including stale delivered version and partial failure."
+  }
+]
