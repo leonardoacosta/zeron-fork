@@ -13,6 +13,17 @@
 
 In each workflow remove `paths:` only from the `pull_request` trigger, so the summary appears for docs-only PRs. Keep push filters and all existing test commands. Add the distinct stable `ui-promotion`, `preview-promotion`, or `windows-promotion` job with `if: always()`, `needs` for every required job, and the complete job below. Require each workflow-specific summary context in branch protection, distinguishing by workflow name if necessary. Each summary runs in the same workflow run as its tests. The PR run tests GitHub's merge revision. `needs.networking.result` represents the matrix as a whole and succeeds only when both matrix legs pass. Make existing conditional `ios-tests` unconditional so skip cannot silently count as success. Do not include Windows `native-gui`.
 
+## Exact trigger edits before adding summaries
+For `.github/workflows/ui-tests.yml`, `.github/workflows/preview-tests.yml`, and `.github/workflows/windows.yml`, replace the entire `pull_request` mapping (including only its nested path filters) with this same mapping. Leave the following `push` and `workflow_dispatch` siblings byte-for-byte unchanged:
+```yaml
+  pull_request:
+```
+For `.github/workflows/ui-tests.yml` only, remove exactly this existing line from the `ios-tests` job, retaining its `needs: changes` and all steps:
+```yaml
+    if: needs.changes.outputs.ios == 'true'
+```
+If the exact job/trigger anchors differ from inspected baseline, stop and refresh the patch. Do not globally delete every `paths` or `if` key. These edits deliberately run all required PR jobs; no docs-only skip can strand a required summary.
+
 ## Exact summary jobs
 
 UI, appended under `jobs:`:
