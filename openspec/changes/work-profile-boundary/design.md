@@ -34,7 +34,7 @@ Do not promote this whole unit after A. If split into child changes, A must expo
 
 Catalog is owner-local, located under device data root but contains no secrets. Use SQLite transaction support already present, not unlocked JSON rewrites. Catalog rows identify immutable profile ID, current revision and display name. Updating requires matching expected revision. Distinct work-profile stores remain independent; catalog is not assignment history. Required mutation identity is scoped to actor/principal plus operation/profile and binds exact payload; retry returns original result without revision duplication. A rejected mutation writes nothing. Atomic catalog update+replay receipt is mandatory.
 
-Exact SQL/API patch must be completed before B implementation. This clause is an explicit remaining plan gap, not an instruction for a lesser executor to guess table names or error wire format. Existing assignment replay mechanics are reuse evidence, not permission to copy unchecked SQL.
+Exact catalog SQL/API implementation and tests now live in `../work-profile-catalog/tasks.md`. This runtime unit consumes that reviewed contract and must not duplicate or invent a different catalog schema. Runtime identity/attachment/resource wiring remains its separate acceptance.
 
 ## C. Boot, EngineInfo, and daemon binding contract
 
