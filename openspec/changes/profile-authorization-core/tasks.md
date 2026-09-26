@@ -17,7 +17,7 @@ The unit remains gated if any later integration step is unresolved. A helper pas
 ## A. Exact synchronous authorization core proposal
 **Create:** `crates/engine/src/work_authorization.rs`. **Modify:** `crates/engine/src/lib.rs` adds private `mod work_authorization;`. Reuse proposed proto profile types; no provider calls or credential values in this module.
 
-- [ ] Add tests first then complete definitions below. `cargo test --locked -p zeron-engine --lib work_authorization::tests` must select9 tests and pass. The test closure counts admission only, not provider effects.
+- [ ] Add tests first then complete definitions below. `cargo test --locked -p zeron-engine --lib work_authorization::tests` must select10 tests and pass. The test closure counts admission only, not provider effects.
 ```rust
 #![forbid(unsafe_code)]
 
@@ -1713,7 +1713,7 @@ mod tests {
 }
 
 ```
-- [ ] Run `cargo test --locked -p zeron-engine --lib work_policy_store::tests`, require13 tests. Run `work_authorization::tests` separately, require10. Do not count the catalog/wire21-test scratch run as19 evaluator tests: it contains4 wire+7 catalog+10 durable-policy tests, not the separate9 evaluator tests.
+- [ ] Run `cargo test --locked -p zeron-engine --lib work_policy_store::tests`, require13 tests. Run `work_authorization::tests` separately, require10. Current combined inventory is4 wire +7 catalog +10 evaluator +13 durable-policy/coordinator =34 tests. These counts must be confirmed by actual filtered listings, not inferred from a previous run.
 - [ ] Run `cargo clippy --workspace --all-targets --all-features -- -D warnings` after actual consumer integration. Do not suppress unused private module warnings to ship an unconsumed store. The core module visibility/API must match its reviewed consumer boundary, never expose a mutation RPC that accepts caller-supplied principal as authority.
 - [ ] Wire store snapshot loading to evaluator initialization: call `load` with owner-derived principal/binding, reject None/corrupt/error, then `replace_policy(principal, binding, snapshot.policy_revision.get(), snapshot.grants)`. A policy mutation is not acknowledged until durable commit AND active evaluator update have reached a safe serialized state. If evaluator publication fails after commit, hold new effects and reload; never continue serving old grants under a successful mutation response.
 - [ ] This slice's integration test proves durable load→authorize→synchronous effect→revoke→reload→old-permit denial. It does not prove multi-process cache invalidation or async effect stopping. Only one owner process may mutate a live profile policy; the later runtime activation must enforce that instance lock and dispatch-generation protocol before exposure.
