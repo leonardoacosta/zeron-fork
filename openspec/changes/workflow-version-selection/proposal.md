@@ -4,7 +4,7 @@ Status: proposed; discovery/refinement contract only. Implementation gate CLOSED
 
 **PRD:** ZF-05, ZF-06
 **Round:** 3
-**Hard prerequisites:** `revision-evidence-bindings`, `work-profile-boundary`
+**Hard prerequisites:** `revision-evidence-bindings`, `work-profile-catalog`
 
 ## Scope
 Define independently versioned workflows with stages, agent choices, checks, failure policy, gates and autonomy. Ship the PRD starting sequence without forcing investigation-only work to produce code. Select explicit assignment override, else repository default, else profile default; if none exists hold with a clear configuration error. Persist selected version and explanation before launch. Suggestions create optional updates; active definitions never mutate silently.

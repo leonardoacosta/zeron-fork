@@ -4,7 +4,7 @@ Status: proposed; discovery/refinement contract only. Implementation gate CLOSED
 
 **PRD:** ZF-15, ZF-02
 **Round:** 2
-**Hard prerequisites:** `work-profile-boundary`
+**Hard prerequisites:** `work-profile-catalog`
 
 ## Scope
 Produce comparable per-harness capability results with supported/unsupported/unknown distinctions and observed version. Freeze requested harness/model/account reference/environment/sandbox/resource configuration for a run. Inspect actual adapter behavior, especially Codex sandbox overrides and Claude/ACP auto-approval, before claiming enforcement. Unsupported requested isolation blocks dispatch. Configuration changes require explicit new run binding.

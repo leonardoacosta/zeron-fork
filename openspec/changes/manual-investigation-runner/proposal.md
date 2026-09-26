@@ -4,7 +4,7 @@ Status: proposed; discovery/refinement contract only. Implementation gate CLOSED
 
 **PRD:** ZF-03, ZF-05, ZF-06, ZF-08
 **Round:** 5
-**Hard prerequisites:** `safe-resume-reconciliation`, `verification-acceptance-gates`, `run-resource-ledger`
+**Hard prerequisites:** `safe-resume-reconciliation`, `verification-acceptance-gates`, `run-resource-ledger`, `work-profile-boundary`
 
 ## Scope
 Explicitly launch one configured investigation for an assignment after profile/preflight/resource/selection gates. Bind native session IDs and observations; findings can be the terminal output. Preserve objective and permissions through replacement, with stop proof for affected old execution. Keep direct sessions runnable without implicit assignments. No coding/delivery authorization inferred from investigation.

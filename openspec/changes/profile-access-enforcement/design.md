@@ -13,7 +13,7 @@ Status: proposed; existing effect paths inspected, full code task refinement sti
 - Additional exact callers: `crates/engine/src/doc_host.rs` dispatch_queued/dispatch_with_source_context; `crates/mcp/src/tools.rs` create_chat/deliver/send_message; `crates/engine/src/uploads.rs` read grants. Follow these even if the UI hides an operation.
 
 ## Shared identity and decision contract
-Consume WorkProfileBinding/WorkProfileSelection from work-profile-boundary. Never redefine profile as display name/account/scope. Runtime principal is authenticated owning engine context, not request JSON.
+Consume WorkProfileBinding/WorkProfileSelection from work-profile-catalog. Never redefine profile as display name/account/scope. Runtime principal is authenticated owning engine context, not request JSON.
 
 Proposed new engine-owned `WorkAuthorizer` is a concrete policy evaluator owned by EngineCore, not a plugin framework. `authorize` returns `Result<AuthorizationPermit, WorkAuthorizationError>`, not an allowed bool plus optional contradictory denial. Permit fields are private, cannot be deserialized from a client. A permit names binding, policy revision, operation, resolved resource and effect generation; use it only at the checked boundary. Revalidate immediately before asynchronous effect dispatch. A missing evaluator returns Unavailable, never allow.
 

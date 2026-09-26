@@ -4,7 +4,7 @@ Status: proposed; discovery/refinement contract only. Implementation gate CLOSED
 
 **PRD:** ZF-02, ZF-15, ZF-19
 **Round:** 2
-**Hard prerequisites:** `work-profile-boundary`
+**Hard prerequisites:** `work-profile-catalog`
 
 ## Scope
 Validate work-profile policy at every engine entry point that reads protected content or launches tools: direct sessions, assignment operations, MCP, terminal, repository and credential selection. Bind allowed repositories, account references, tools, environments and action scope explicitly. Revalidate at launch and external-effect boundaries; policy revocation blocks new effects and enters the configured stop/hold path. Never serialize secret values into authority snapshots.

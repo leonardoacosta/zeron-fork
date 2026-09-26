@@ -64,38 +64,6 @@
     "gate": "Inspect actual generated package contents and exact pinned licenses; unresolved terms routed to human review without invented conclusions."
   },
   {
-    "slug": "work-profile-boundary",
-    "title": "Named work profiles and explicit bindings",
-    "zf": [
-      "02"
-    ],
-    "round": 1,
-    "deps": [
-      "ci-promotion-gates"
-    ],
-    "paths": [
-      "crates/engine/src/profile.rs",
-      "crates/engine/src/lib.rs",
-      "crates/proto/src/workspace.rs",
-      "crates/sync/src/store.rs",
-      "crates/engine/tests/local_profiles.rs"
-    ],
-    "behavior": "Introduce extensible work-profile identity/configuration separate from Local/Synced/Development transport scope. Personal/Priceless/Brown are named work contexts, not hardcoded three-case permissions. Bind direct sessions and assignments to a stable work-profile ID and revision. Existing data must have an explicit migration/binding rule; ambiguous legacy ownership remains read-only/held rather than assigned by guess.",
-    "cases": [
-      "Two profiles on one device cannot retrieve each other's assignment, transcript, upload or repository binding through local or remote RPC.",
-      "Rename a profile while a session runs: identity stays stable and the frozen binding does not silently change.",
-      "Open legacy data without an unambiguous work-profile binding: show migration-required state, retain original bytes and prohibit execution.",
-      "Create a fourth profile without changing an enum or granting default access."
-    ],
-    "traps": [
-      "Transport login/account scope is not a work profile.",
-      "A Brown label must not probe Brown systems.",
-      "Do not remap historical assignments to whichever profile is active now."
-    ],
-    "rollback": "Additive migration with a backup and old-store compatibility check. Downgrade must refuse unsupported bindings rather than merge profiles. Retain legacy source data.",
-    "gate": "Real two-profile owner/client reads and restart, plus legacy-store fixture migration and denied cross-profile access."
-  },
-  {
     "slug": "integration-harness-observer-research",
     "title": "Jcode, Herdr and observer capability research",
     "zf": [
@@ -228,6 +196,38 @@
     "gate": "Existing native suites plus installed Mac/homelab test evidence reconciled to commit/binary identity; lifecycle caveats explicit."
   },
   {
+    "slug": "work-profile-catalog",
+    "title": "Validated profile identity and owner catalog",
+    "zf": [
+      "02"
+    ],
+    "round": 1,
+    "deps": [
+      "ci-promotion-gates"
+    ],
+    "paths": [
+      "crates/engine/src/profile.rs",
+      "crates/engine/src/lib.rs",
+      "crates/proto/src/workspace.rs",
+      "crates/sync/src/store.rs",
+      "crates/engine/tests/local_profiles.rs"
+    ],
+    "behavior": "Define validated opaque profile identity, display metadata and revision types plus owner-local principal-scoped catalog persistence. Create/rename use atomic per-profile CAS and actor/principal-scoped exact replay receipts. This foundation provides no runtime authority, no daemon attachment, no sync namespace, and no legacy execution permission.",
+    "cases": [
+      "Invalid UUID/revision/name rejects during wire decoding before catalog write.",
+      "Same operation identity and payload replays exact result; changed payload conflicts without mutation.",
+      "Two connections rename the same revision: exactly one wins, history of receipts survives reopen.",
+      "Late SQL failure rolls back row and receipt; future schema rejected without modifying database."
+    ],
+    "traps": [
+      "Do not mark named-profile isolation complete from catalog tests.",
+      "Never duplicate shared wire types downstream.",
+      "Principal and actor are owner context, not untrusted request labels."
+    ],
+    "rollback": "Additive unused catalog only; do not advertise runtime capability. Future schema refused before mutation; retain legacy stores unchanged.",
+    "gate": "Exact proto/catalog production tests plus real SQLite concurrent CAS, trigger rollback/reopen, poison/future-schema negatives. No runtime isolation claim."
+  },
+  {
     "slug": "profile-access-enforcement",
     "title": "Execution-time profile and resource authorization",
     "zf": [
@@ -237,7 +237,7 @@
     ],
     "round": 2,
     "deps": [
-      "work-profile-boundary"
+      "work-profile-catalog"
     ],
     "paths": [
       "crates/engine/src/rpc.rs",
@@ -273,7 +273,7 @@
     ],
     "round": 2,
     "deps": [
-      "work-profile-boundary"
+      "work-profile-catalog"
     ],
     "paths": [
       "crates/engine/src/registry.rs",
@@ -308,7 +308,7 @@
     ],
     "round": 2,
     "deps": [
-      "work-profile-boundary",
+      "work-profile-catalog",
       "assignment-record"
     ],
     "paths": [
@@ -332,6 +332,39 @@
     ],
     "rollback": "Add typed records alongside legacy strings; legacy remains explicitly unverified. Never backfill fabricated observations. Preserve immutable historical bindings on rollback.",
     "gate": "Real create/edit/restart/read workflow proving stale invalidation and exact evidence retrieval, with synthetic fixtures separately tagged."
+  },
+  {
+    "slug": "work-profile-boundary",
+    "title": "Named work profiles and explicit bindings",
+    "zf": [
+      "02"
+    ],
+    "round": 3,
+    "deps": [
+      "work-profile-catalog",
+      "profile-access-enforcement"
+    ],
+    "paths": [
+      "crates/engine/src/profile.rs",
+      "crates/engine/src/lib.rs",
+      "crates/proto/src/workspace.rs",
+      "crates/sync/src/store.rs",
+      "crates/engine/tests/local_profiles.rs"
+    ],
+    "behavior": "Bind engine runtime, daemon attachment, direct sessions and assignments to the validated work-profile catalog identity and current authority. Reject wrong/old daemon identity before protected reads. Legacy roots without explicit binding remain inspection-only with no recovery or execution. Do not migrate/copy data here; work-profile-legacy-migration owns that separate protocol.",
+    "cases": [
+      "Two profiles on one device cannot retrieve each other's assignment, transcript, upload or repository binding through local or remote RPC.",
+      "Rename a profile while a session runs: identity stays stable and the frozen binding does not silently change.",
+      "Open legacy data without an unambiguous work-profile binding: show migration-required state, retain original bytes and prohibit execution.",
+      "Create a fourth profile without changing an enum or granting default access."
+    ],
+    "traps": [
+      "Transport login/account scope is not a work profile.",
+      "A Brown label must not probe Brown systems.",
+      "Do not remap historical assignments to whichever profile is active now."
+    ],
+    "rollback": "Additive migration with a backup and old-store compatibility check. Downgrade must refuse unsupported bindings rather than merge profiles. Retain legacy source data.",
+    "gate": "Two-profile runtime owner/client and exact daemon binding checks; legacy roots held read-only. Import execution belongs to work-profile-legacy-migration."
   },
   {
     "slug": "run-resource-ledger",
@@ -414,7 +447,7 @@
     "round": 3,
     "deps": [
       "revision-evidence-bindings",
-      "work-profile-boundary"
+      "work-profile-catalog"
     ],
     "paths": [
       "crates/proto/src/assignment.rs",
@@ -553,7 +586,8 @@
     "deps": [
       "safe-resume-reconciliation",
       "verification-acceptance-gates",
-      "run-resource-ledger"
+      "run-resource-ledger",
+      "work-profile-boundary"
     ],
     "paths": [
       "crates/engine/src/sessions.rs",
@@ -612,6 +646,39 @@
     ],
     "rollback": "Per-provider disable switch and native state/effect reconciliation before removal. Preserve other adapters and direct sessions.",
     "gate": "One real harmless authorized workflow per selected adapter and failure/unknown capability checks. Unselected providers remain blocked, not marked complete."
+  },
+  {
+    "slug": "work-profile-legacy-migration",
+    "title": "Explicit non-destructive work-profile migration",
+    "zf": [
+      "02"
+    ],
+    "round": 5,
+    "deps": [
+      "work-profile-boundary",
+      "safe-resume-reconciliation"
+    ],
+    "paths": [
+      "crates/engine/src/profile.rs",
+      "crates/engine/src/lib.rs",
+      "crates/proto/src/workspace.rs",
+      "crates/sync/src/store.rs",
+      "crates/engine/tests/local_profiles.rs"
+    ],
+    "behavior": "Migrate only explicitly selected legacy source to a new named-profile target with verified identity, non-destructive staged copy, content manifest and atomic publication. Preserve original data; no credentials copied. Interrupted or ambiguous migration remains non-executable. Imported runs require safe resume authorization, never automatic journal replay.",
+    "cases": [
+      "No explicit source/target binding: legacy source stays unchanged and execution held.",
+      "Crash during staged copy: destination is not published ready and source remains intact.",
+      "Source changes or target already exists: reject without overwrite or merging profiles.",
+      "Verified copied data is published atomically, but copied run journals do not auto-resume."
+    ],
+    "traps": [
+      "Existing LocalImporter account import is not named-profile migration.",
+      "A completed copy does not authorize recovered runs.",
+      "No live credential copy or auto-selection by profile label."
+    ],
+    "rollback": "Keep source immutable; retain staging and incomplete marker for diagnosis. Never delete original or overwrite target. Revert capability without erasing migration receipts.",
+    "gate": "Real isolated old-store fixtures with source digest drift, partial-copy fault, target collision, atomic publish/reopen and zero harness starts."
   },
   {
     "slug": "assignment-desktop-surface",

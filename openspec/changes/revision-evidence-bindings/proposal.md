@@ -4,7 +4,7 @@ Status: proposed; discovery/refinement contract only. Implementation gate CLOSED
 
 **PRD:** ZF-14, ZF-03
 **Round:** 2
-**Hard prerequisites:** `work-profile-boundary`, `assignment-record`
+**Hard prerequisites:** `work-profile-catalog`, `assignment-record`
 
 ## Scope
 Introduce immutable output/candidate identities bound to exact assignment revision, source revision and dirty-tree content, frozen input/configuration/authorization/resource bindings, environment and native sessions. Evidence records check command, observations, outcome, limitations, timestamps and redacted artifacts. Separate structural, synthetic and real-workflow evidence. Editing inputs creates a new binding; it does not transfer approval.

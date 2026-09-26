@@ -1,7 +1,7 @@
 # Versioned workflow definitions and selection: design boundary
 
 ## Read first
-`../../../docs/fork-prd.md`, `../prd-execution-map/design.md`, this proposal/spec, and the prerequisite changes `revision-evidence-bindings`, `work-profile-boundary`. Baseline `1427da6`; all source lines must be refreshed after prerequisite changes. Paths below are existing anchors, not permission to edit every file.
+`../../../docs/fork-prd.md`, `../prd-execution-map/design.md`, this proposal/spec, and the prerequisite changes `revision-evidence-bindings`, `work-profile-catalog`. Baseline `1427da6`; all source lines must be refreshed after prerequisite changes. Paths below are existing anchors, not permission to edit every file.
 
 ## Existing surfaces and file responsibilities
 - `crates/proto/src/assignment.rs`: existing source/test/config anchor; inspect its graph card before source.

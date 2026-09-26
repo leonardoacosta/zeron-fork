@@ -20,7 +20,7 @@ Use existing HarnessId, SandboxLevel, RunRequest. Do not add a second harness en
 - `PreflightResult`: immutable request binding, observation and capability verdicts. Any required capability not Supported makes launch inadmissible. Optional unknown cost remains unknown and invokes resource policy, never zero.
 - `LaunchBinding`: reference to persisted preflight result plus immutable selected run configuration; produced by owner only after authorization. A preflight result is not an authority token from an untrusted client.
 
-Wire fields and persisted schema must be shared with profile-access-enforcement/run-resource-ledger/revision-evidence-bindings. Those contracts consume the same WorkProfileBinding defined by work-profile-boundary, not independent string profile labels. Requested sandbox and observed provider configuration are both recorded; mismatch is a failure, never normalized into a claimed pass.
+Wire fields and persisted schema must be shared with profile-access-enforcement/run-resource-ledger/revision-evidence-bindings. Those contracts consume the same WorkProfileBinding defined by work-profile-catalog, not independent string profile labels. Requested sandbox and observed provider configuration are both recorded; mismatch is a failure, never normalized into a claimed pass.
 
 ## Safe initial adapter coverage matrix
 

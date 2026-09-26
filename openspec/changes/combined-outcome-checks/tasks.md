@@ -4,7 +4,7 @@
 **Architecture:** Existing Rust engine/proto/RPC/profile storage and native clients are the starting point. Freeze interfaces from observed source; no speculative provider API or generic framework.
 **Tech stack:** Rust/Tokio/Serde/SQLite; GPUI/Swift/Worker TypeScript only if the approved surface requires them.
 **Status:** executable discovery/refinement steps; product implementation NOT READY.
-**Dependencies:** `multi-repository-breakdown`, `git-delivery-actions`, `release-deploy-publish-actions`. Read-only research can proceed without using unimplemented prerequisite APIs; implementation waits for all prerequisite CI promotion records.
+**Dependencies:** `multi-repository-breakdown`, `git-delivery-actions`, `release-deploy-publish-actions`. Only exact prerequisite promotion admits implementation.
 
 ## D1. Recover authority and source (one bounded read per listed anchor)
 **Files:** design.md and tasks.md in this change; read-only source anchors in design.md.
