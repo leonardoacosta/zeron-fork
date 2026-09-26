@@ -142,7 +142,7 @@ class PromotionGateTests(unittest.TestCase):
                 command = inspect(text, name, required)
                 if filename == 'ui-tests.yml':
                     ios = summary(text, 'ios-tests')
-                    self.assertNotRegex(ios, r'^    if:', 'iOS must not be skipped')
+                    self.assertNotRegex(ios, r'(?m)^    if:', 'iOS must not be skipped')
                 good = {job: {'result': 'success'} for job in required}
                 controls = [(good, 0), ({}, 1)]
                 for job in required:

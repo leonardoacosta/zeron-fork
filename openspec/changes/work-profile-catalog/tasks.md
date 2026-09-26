@@ -155,7 +155,7 @@ git commit -m "feat(proto): define validated work profile bindings"
 ```
 
 ## B. Exact catalog persistence slice
-**Create:** `crates/engine/src/work_profile_catalog.rs`. **Modify:** `crates/engine/src/lib.rs` adds private `mod work_profile_catalog;`. Engine already depends on rusqlite/sha2/serde/thiserror, so do not add a sync->proto runtime dependency or duplicate wire types. Catalog database is a separate owner-local file; it is not opened automatically until C integration is approved.
+**Create:** `crates/engine/src/work_profile_catalog.rs`. **Modify:** `crates/engine/src/lib.rs` adds `pub mod work_profile_catalog;` as the reusable owner-catalog API (not an RPC endpoint). Engine already depends on rusqlite/sha2/serde/thiserror, so do not add a sync->proto runtime dependency or duplicate wire types. Catalog database is a separate owner-local file; it is not opened automatically until C integration is approved.
 
 - [ ] Add test module first and module declaration; compile-red for missing definitions is preparatory only. Then add complete source below, which imports slice A's exact proto types.
 ```rust
@@ -166,7 +166,7 @@ use std::path::Path;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use thiserror::Error;
 
-use zeron_proto::{MAX_WORK_PROFILE_REVISION, WorkProfileBinding, WorkProfileId, WorkProfileName, WorkProfileRecord, WorkProfileRevision};
+use zeron_proto::{WorkProfileBinding, WorkProfileId, WorkProfileName, WorkProfileRecord, WorkProfileRevision};
 
 macro_rules! token_type {
     ($name:ident, $max:expr) => {
@@ -697,3 +697,6 @@ Run exact feature tests plus required round CI from `../prd-execution-map/design
 
 ## Rollback
 Additive unused catalog only; do not advertise runtime capability. Future schema refused before mutation; retain legacy stores unchanged.
+
+## Lint integration correction
+Cold extraction into the actual proto/engine module shape passed4+7 tests but exposed an unused import and dead private module under required clippy -D warnings. Removed unused revision constant import and explicitly export the reusable catalog module, consistent with existing public engine storage helpers. This export is not remote authorization. Corrected scratch module passes workspace/all-target clippy with warnings denied; do not add blanket lint suppressions.
