@@ -286,7 +286,7 @@
     "rollback": "Roll back enforcement code only with execution disabled for newly bound profiles. Never turn unknown policy into allow to preserve compatibility.",
     "gate": "Instrument real engine dispatch boundaries and prove unauthorized paths perform zero protected reads/effects; approved isolated account succeeds.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "harness-preflight-binding",
@@ -323,7 +323,7 @@
     "rollback": "Preserve existing direct-session records; gate only capabilities whose policy requires proof. Retain prior configuration/version evidence and reject unsupported downgrade.",
     "gate": "Adapter argument/protocol tests plus one authorized native harness preflight; token-spending execution requires separate bounded budget.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "revision-evidence-bindings",
@@ -359,7 +359,7 @@
     "rollback": "Add typed records alongside legacy strings; legacy remains explicitly unverified. Never backfill fabricated observations. Preserve immutable historical bindings on rollback.",
     "gate": "Real create/edit/restart/read workflow proving stale invalidation and exact evidence retrieval, with synthetic fixtures separately tagged.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "work-profile-boundary",
@@ -431,7 +431,7 @@
     "rollback": "Append-only ledger migration; reconcile outstanding reservations before rollback. Do not discard charges or return allocations until effects are known.",
     "gate": "Concurrent reservation/restart integration and provider fixture with duplicated/missing usage; real supported provider observations separately labelled.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "confirmed-stop-handoff",
@@ -469,7 +469,7 @@
     "rollback": "Persist lifecycle transition before acknowledgment. Downgrade active/uncertain work to hold; no replay of unconfirmed external effects.",
     "gate": "Real harmless subprocess with descendant writes proves last write/exit boundary; native harness-specific stopping requires its own evidence.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "workflow-version-selection",
@@ -504,7 +504,7 @@
     "rollback": "Immutable versions and additive references; old readers fail explicitly on unsupported workflow versions. Roll back default pointers without rewriting active runs.",
     "gate": "Precedence, version pinning, invalid override and restart tests through owner RPC; UI explanation delivered by presentation changes.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "safe-resume-reconciliation",
@@ -540,7 +540,7 @@
     "rollback": "Keep original journal immutable or backed up; new recovery metadata additive. If reader cannot understand uncertainty state, fail closed and retain data.",
     "gate": "Crash-boundary subprocess tests and authorized native restart with revoked-policy negative case; no external side effect replay.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "verification-acceptance-gates",
@@ -577,7 +577,7 @@
     "rollback": "Persist decision and inputs atomically, append revisions instead of rewriting past approvals. Rollback holds unsupported decisions.",
     "gate": "Owner RPC transitions with stale/revoked/external-rejection cases and restart at decision commit boundary.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "exception-attention",
@@ -613,7 +613,7 @@
     "rollback": "Keep exception records even when delivery disabled. Fallback in-product activity/blocked state remains; no auto-resume during rollback.",
     "gate": "Native notification/activity integration plus delivery-failure/restart/grouping and cross-profile redaction assertions.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "manual-investigation-runner",
@@ -653,7 +653,7 @@
     "rollback": "Existing assignments remain records until explicit launch. Pause/hold active runs before downgrade; preserve run IDs and findings.",
     "gate": "First real end-to-end investigation on harmless local repository: launch, stop, replace, restart, accepted findings; bounded authorized harness budget.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "integration-provider-adapters",
@@ -767,7 +767,7 @@
     "rollback": "Feature-gate presentation, keep stored records intact; remove UI entry points without deleting assignments. Preserve old client capability behavior.",
     "gate": "Native GPUI workflow with actual owner/client, keyboard/focus/accessibility checks and zero implicit assignments.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "delivery-effect-ledger",
@@ -804,7 +804,7 @@
     "rollback": "Append-only effect records retained across downgrade. Disable new dispatch if reconciliation unsupported; never delete uncertainty to unblock work.",
     "gate": "Controlled local external-effect fixture with crash boundaries, plus each adapter's separate authorized real destination gate.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "conflict-admission-observer",
@@ -841,7 +841,7 @@
     "rollback": "Admission records/leases durable; downgrade stops new overlapping launches, preserves already-running ownership and uncertainty.",
     "gate": "Concurrent direct-session plus assignment admission with resource conflicts, unknown observer and changed-scope checks; provider-specific SystemOne evidence separately required.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "engineering-stage-runner",
@@ -880,7 +880,7 @@
     "rollback": "Hold active stage execution with confirmed stopping before downgrade; preserve candidate bytes, run bindings and evidence. No reset of user working tree as rollback.",
     "gate": "Real harmless local repository: accepted proposal to one engineer implementation, exact candidate capture, failing then passing independent check, no unauthorized delivery.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "assignment-mobile-parity",
@@ -917,7 +917,7 @@
     "rollback": "Additive decoding and capability flags; retain previous compatible read path. No forced desktop data migration for mobile layout.",
     "gate": "Existing iOS unit CI plus authorized simulator/device-to-owner workflow and disconnected/stale-revision checks.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "git-delivery-actions",
@@ -953,7 +953,7 @@
     "rollback": "Disable action dispatch, preserve external links/effect ledger. Rollback cannot undo a pushed/merged effect by pretending it never occurred.",
     "gate": "Local bare-remote push first; actual authorized sandbox GitHub/ADO create/merge with exact head verification and provider failure paths.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "release-deploy-publish-actions",
@@ -990,7 +990,7 @@
     "rollback": "Per-target rollback recipe required before dispatch; back up user data and executable, never destructive blanket cleanup. External irreversible effects require explicit reconciliation.",
     "gate": "Harmless local install with service recovery and rollback, then separately authorized external destinations only when selected.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "priority-backlog",
@@ -1025,7 +1025,7 @@
     "rollback": "Persist queue identity/order/blockers; freeze dispatch on downgrade and rebuild indices without losing original admission timestamps.",
     "gate": "Concurrent queue/restart integration and actual-stop boundary with direct sessions included.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "accepted-output-dependencies",
@@ -1059,7 +1059,7 @@
     "rollback": "Keep immutable edge/output revisions and append invalidations. Downgrade blocks unknown graph semantics, not deleting edges.",
     "gate": "Graph transaction/restart tests and real two-stage workflow proving exact-version binding and invalidation.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "scoped-browser-capability",
@@ -1099,7 +1099,7 @@
     "rollback": "Close only owned sessions, keep user browser untouched. Revoke scoped handles on rollback, no destructive global profile cleanup.",
     "gate": "Actual chosen provider with two isolated browser profiles and harmless local authenticated fixture; external mutation needs separate scoped authorization.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "multi-repository-breakdown",
@@ -1137,7 +1137,7 @@
     "rollback": "Add parent links without rewriting existing assignments; retain orphan/partial delivery status on rollback and hold new dispatch.",
     "gate": "Two real local repositories with independent children, one dependency and budget/scope-denied child; restart restores editable breakdown.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "opt-in-trigger-launch",
@@ -1175,7 +1175,7 @@
     "rollback": "Disable dispatch before rollback; retain event dedupe/provenance and pending approvals. Do not clear dedupe to recover a stuck event.",
     "gate": "Local event replay/reorder/concurrent delivery with actual runner admission and resource-denied case; selected external event source separately verified.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "engineering-comparisons",
@@ -1213,7 +1213,7 @@
     "rollback": "Keep isolated attempt directories/evidence until retention authorized. Abort/stop-confirm all attempts before cleanup; preserve external effects and costs.",
     "gate": "Two bounded harmless local entrants on identical baseline, actual isolation tests, independent verifier and no-default-change assertions.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "profile-briefings",
@@ -1247,7 +1247,7 @@
     "rollback": "Disable schedules before rollback, preserve delivery identity/history and user configuration. No replay of past messages without explicit policy.",
     "gate": "Deterministic clock/scheduler tests plus actual authorized local notification destination; external email/chat destination separately authorized.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "combined-outcome-checks",
@@ -1283,7 +1283,7 @@
     "rollback": "Persist combined-check input set and observations immutably; rollback withdraws unsupported completion claims but preserves delivery facts.",
     "gate": "Real two-repository local consumer/provider compatibility check including stale delivered version and partial failure.",
     "readiness": "refinement_required",
-    "readiness_reason": "Whole-unit integration tasks and native acceptance contracts remain incomplete; compiled slices do not establish complete handoff."
+    "readiness_reason": "Canonical tasks still require exact integration contract refinement. Any tested pure code slices are partial and cannot promote whole unit."
   },
   {
     "slug": "profile-authorization-core",
