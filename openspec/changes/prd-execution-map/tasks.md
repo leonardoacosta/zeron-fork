@@ -10,7 +10,7 @@
 - [x] Run complete self-review for clause coverage, no guessed interfaces, explicit blockers, rollback and consistent dependency metadata.
 - [x] Obtain independent review, repair concrete omissions and contradictory authority/CI claims.
 - [x] Run `python3 openspec/changes/prd-execution-map/validate.py` and `git diff --check`; expected exit0 with all19 mapped, all child artifacts present and acyclic dependencies.
-- [ ] Commit only approved planning artifacts and unchanged PRD baseline; report discovery-ready versus implementation-blocked status accurately.
+- [x] Commit only requested planning artifacts and unchanged PRD baseline; report discovery-ready versus implementation-blocked status accurately. Initial package committed as `c3a04c0`; no product implementation or push.
 
 ## Handoff
 First named refinement: `ci-promotion-gates`. R0 blocks later implementation promotion until clean enforceable CI baseline exists. Then follow design.md dependency rounds; no blanket `apply:all` authorization supplied by plan authoring.
