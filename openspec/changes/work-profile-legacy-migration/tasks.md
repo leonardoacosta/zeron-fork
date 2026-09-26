@@ -25,6 +25,44 @@
 - [ ] Source/target selection requires explicit authorized input. Exact snapshot/digest/publication implementation remains a technical planning task; do not label it a user blocker or delegate it as guessing.
 
 
+## Exact single-database snapshot slice
+**Proposed create:** `crates/engine/src/profile_snapshot.rs`; private module declaration in `crates/engine/src/lib.rs`. **Dependency change:** existing workspace rusqlite features change from `["bundled"]` to `["bundled", "backup"]`; no new crate. Test this exact feature against locked version0.32.1 before proceeding.
+
+- [ ] Add tests below first, then implementation. Run `cargo test --locked -p zeron-engine --lib profile_snapshot::tests`; require3 Unix tests (2 cross-platform plus Unix symlink case). This is one consistent database backup, NOT full multi-file migration.
+```rust
+use std::{fs, path::Path};
+use rusqlite::{Connection, OpenFlags, backup::Backup};
+// Caller must hold engine-owned source quiescence and validated path capability.
+// This copies one database only; not a complete profile migration/publication.
+pub fn snapshot_database(source:&Path, staged:&Path)->Result<(),Box<dyn std::error::Error>> {
+    if !fs::symlink_metadata(source)?.file_type().is_file() { return Err("source is not a regular database".into()); }
+    let source_db=Connection::open_with_flags(source,OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+    let check:String=source_db.query_row("PRAGMA integrity_check",[],|r|r.get(0))?;
+    if check!="ok" {return Err("source integrity check failed".into());}
+    // create_new refuses collisions; no overwrite of a caller's existing target.
+    let reservation=fs::OpenOptions::new().write(true).create_new(true).open(staged)?;
+    drop(reservation);
+    let mut destination=Connection::open(staged)?;
+    {let backup=Backup::new(&source_db,&mut destination)?;backup.run_to_completion(64,std::time::Duration::from_millis(10),None)?;}
+    let check:String=destination.query_row("PRAGMA integrity_check",[],|r|r.get(0))?;
+    if check!="ok" {return Err("staged integrity check failed".into());}
+    destination.close().map_err(|(_,e)|e)?;
+    fs::File::open(staged)?.sync_all()?;
+    Ok(())
+}
+#[cfg(test)]mod tests{
+ use super::*;
+ #[test]fn includes_committed_wal_and_refuses_target_overwrite(){
+  let d=tempfile::tempdir().unwrap();let src=d.path().join("source.db");let dst=d.path().join("stage.db");let db=Connection::open(&src).unwrap();db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE proof(v TEXT); PRAGMA wal_checkpoint(TRUNCATE); INSERT INTO proof VALUES ('committed');").unwrap();
+  snapshot_database(&src,&dst).unwrap();let copied=Connection::open(&dst).unwrap();let v:String=copied.query_row("SELECT v FROM proof",[],|r|r.get(0)).unwrap();assert_eq!(v,"committed");drop(copied);let before=fs::read(&dst).unwrap();assert!(snapshot_database(&src,&dst).is_err());assert_eq!(fs::read(&dst).unwrap(),before);
+ }
+ #[test]fn missing_source_does_not_create_destination(){let d=tempfile::tempdir().unwrap();let dst=d.path().join("stage.db");assert!(snapshot_database(&d.path().join("missing.db"),&dst).is_err());assert!(!dst.exists());}
+ #[cfg(unix)]#[test]fn symlink_source_rejected(){let d=tempfile::tempdir().unwrap();let src=d.path().join("real.db");let db=Connection::open(&src).unwrap();db.execute_batch("CREATE TABLE x(v);").unwrap();let link=d.path().join("link.db");std::os::unix::fs::symlink(&src,&link).unwrap();assert!(snapshot_database(&link,&d.path().join("stage.db")).is_err());}
+}
+```
+- [ ] The caller must hold the existing engine instance/source-quiescence capability and trusted staging-directory ownership throughout. `symlink_metadata` followed by open is not race-resistant against a malicious concurrent path swap; reject unsupported adversarial filesystem access rather than claiming this helper solves it. No user-controlled path enters directly.
+- [ ] A failed backup leaves an incomplete staged file for reconciliation, never a ready target. Do not overwrite it on retry. Manifest owns staging identity and cleanup policy. Publication, parent-directory durability, profile binding, multi-file consistency and crash reconciliation remain full-unit gates, not implied by these3 tests.
+
 ## Required scenarios
 - C01: No explicit source/target binding: legacy source stays unchanged and execution held.
 - C02: Crash during staged copy: destination is not published ready and source remains intact.
