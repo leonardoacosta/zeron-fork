@@ -32,7 +32,7 @@ Reuse the existing ACP transport rather than creating another agent runner. Firs
 
 Critical source boundary: `crates/harness/src/acp/mod.rs:2986-3026` initializes ACP and supplies the same session parameters to new/load. Current parameters contain an empty `mcpServers` array. Existing resume failure may start a fresh session with an error event, so the Jcode contract must explicitly cover this behavior.
 
-Gap: bundled Jcode documentation searches did not establish the executable arguments, ACP version, authentication mechanism, or supported MCP and usage capabilities. Pin those through actual Jcode documentation and an authorized harmless handshake before promising compatibility. Do not infer that a plausible command name is a verified launch contract.
+Installed CLI evidence: `jcode version` reports `v0.88.146-dev (f92c40053)`. `jcode --help` advertises `acp`, and `jcode acp --help` succeeds, describing a daemon-backed ACP adapter and a `--provider` option. This establishes the actual `jcode acp` command but not wire compatibility. Gap: bundled documentation and CLI help did not establish negotiated ACP version, authentication behavior, or supported MCP and usage capabilities. Pin those through actual Jcode documentation and an authorized harmless handshake before promising compatibility. Do not infer that a plausible command name is a verified launch contract.
 
 ### 3. Host-scoped global and project skill viewer
 
@@ -63,7 +63,7 @@ Verified evidence:
 - `crates/harness/src/acp/mod.rs:2438-2454` normalizes optional token usage and defaults an absent counterpart to zero. This loses missing-versus-zero information relevant to metrics.
 - Worker investigation identified account quota/cache fields in `crates/engine/src/agent_accounts.rs:480-507,581-599`. Quota windows are not billable request totals.
 
-Recommended interpretation pending confirmation: metrics for model calls made through configured agent/gateway routes, not deployment of a new gateway. A truthful first display can show completed-turn counts and observed duration with coverage. Model grouping requires an immutable model/provider snapshot at the measured turn, not today's chat selection. Token and cost totals require durable usage provenance first.
+User clarification at 22:10 UTC: the gateway is **Omni**. Scope metrics to Omni-backed model calls, not a generic gateway dashboard or deployment of a new gateway. An indexed `graft grep 'omni'` returned no matches. Prior conversation search associates Omni with gateway routing, but that is context rather than proof of current API behavior. The Omni endpoint, deployment version, authentication, metrics API, and request correlation contract still require current verification. A truthful first display can show completed-turn counts and observed duration with coverage. Model grouping requires an immutable model/provider snapshot at the measured turn, not today's chat selection. Token and cost totals require durable usage provenance first.
 
 Do not label wall-clock duration as provider latency, infer cost from quota, count missing data as zero, or conflate selected and actually routed models. Before collecting new metrics, specify request/attempt IDs, retry and continuation accounting, cancellation/failure semantics, reported versus estimated usage, effective model identity, retention, and redaction. Never collect prompt/tool bodies merely to produce aggregate metrics.
 
@@ -94,7 +94,7 @@ Nonblocking recommended defaults: read-only skill viewing, backward-readable pro
 
 Resolve during feature refinement:
 
-1. Does “gateway” name a specific service such as an existing local gateway, or mean any configured model route? Its identity determines required APIs and credentials.
+1. Resolved: “gateway” means Omni. Still verify its current read-only metrics API, deployment version, authorized endpoint, and correlation with Jcode requests before designing the dashboard.
 2. Does MCP mean attaching external servers to Jcode, exposing Zeron to external agents, or both? Recommended new work is the former while preserving existing exposure.
 3. Confirm initial platform coverage and whether legacy retired-provider chats must remain resumable. Recommended behavior is readable but not resumable.
 4. Pin the supported Jcode build, install/auth path, ACP behavior, and which capabilities it actually exports.
@@ -108,3 +108,18 @@ Route to feature authoring as bounded contracts: provider retirement compatibili
 Verification must include legacy serialization fixtures and old-client inputs, fake ACP lifecycle/cancel/auth tests, one real harmless Jcode new/resume workflow, selected-host skill scope/collision/symlink tests, new/load MCP configuration equivalence with consent and secret-redaction checks, and replay-safe metrics aggregation with absent usage and retries. Rust implementation must run README formatting/Clippy gates and focused crate tests. Desktop and mobile UI checks need their actual supported runners.
 
 Exploration validation: current source spans and repository documentation were inspected and workers' main claims were checked against current source. `git diff --check` passed, and a local script verified 16 referenced paths and document trailing whitespace. Concurrent changes appeared in `crates/engine/src/doc_host.rs` and `crates/harness/tests/fixtures/fake-claude.sh` during investigation and were left untouched. No application source changes, runtime tests, or GitHub Actions results are claimed.
+
+## Requirement-to-evidence ledger
+
+The active explore skill limits this delivery to investigation and recommendation. The original terse request could otherwise imply implementation. This interpretation is now explicit. Omni identity is user-confirmed; inbound MCP and read-only viewer remain recommended scope rather than user-confirmed product decisions.
+
+| Requested outcome | Concrete check and observation | Acceptance status |
+| --- | --- | --- |
+| Remove Devin/Grok/Antigravity | Current serialized enum contains all three. Exploration identifies legacy decode/launch split and compatibility tests. | Not implemented; no removal acceptance claimed. |
+| First-class Jcode ACP | Installed `jcode --help`, `jcode acp --help`, and `jcode version` all succeeded. ACP is a real daemon-backed command in build f92c40053. | Public CLI verified; real Zeron-to-Jcode lifecycle not exercised because adapter is not implemented. |
+| Global/project skill viewer | Existing selected-host `ListSkills` and discovery roots verified in current source. Viewer scope and provenance gaps recorded. | Not implemented; no UI acceptance claimed. |
+| MCP integration | Installed `zeron --help` succeeded and advertises its stdio MCP server. Current ACP setup passes an empty server list. | Existing public entrypoint verified; external server handoff not implemented or tested. |
+| Omni model metrics | User identified Omni. Indexed source search found no Omni integration. Historical context was retrieved but not treated as live API proof. | No authorized current Omni metrics API was established; dashboard acceptance unavailable. |
+| Durable exploration | Five explicit scope sections, alternatives, user-only actions, unresolved contracts, protocol sources, and tests recorded. Path/whitespace checks passed. | Exploration artifact delivered, not feature delivery. |
+
+No runtime acceptance test could establish unimplemented feature behavior. The real installed CLI checks improve command-contract evidence, but do not substitute for UI, ACP lifecycle, MCP transport, or Omni API acceptance. The next feature authoring pass must obtain those missing contracts before implementation, and implementation must then run the actual workflows. No claim that the product itself improved follows from this documentation-only change.
