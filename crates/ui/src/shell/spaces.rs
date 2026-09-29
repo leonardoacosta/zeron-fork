@@ -502,7 +502,10 @@ mod pinned_session_tests {
     fn sidebar_optimistic_writes_preserve_newer_edits_and_watch_state_on_failure(
         cx: &mut gpui::TestAppContext,
     ) {
-        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
         let _guard = runtime.enter();
         let (engine, mut requests, _replies) = pin_test_engine();
         let dir = tempfile::tempdir().unwrap();
@@ -1012,7 +1015,7 @@ mod pinned_session_tests {
         let (host, cx) = cx.add_window_view(|_, cx| {
             PinnedHost(cx.new(|cx| {
                 let state = cx.new(|_| AppState::new());
-                let mut shell = Shell::new(
+                let shell = Shell::new(
                     state,
                     EngineBootConfig {
                         data_dir: dir.path().into(),

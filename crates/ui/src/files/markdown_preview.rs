@@ -1757,6 +1757,7 @@ mod layout_tests {
                     view.diagram_style = crate::theme::style_generation();
                     let media = crate::image_media::decode_image("image/svg+xml", br##"<svg xmlns="http://www.w3.org/2000/svg" width="240" height="160"><rect width="240" height="160" fill="#468"/></svg>"##.to_vec()).unwrap();
                     view.images.insert("example.svg".into(), Ok(media));
+                    view.media_dirty = true;
                     view
                 })
             }).unwrap();
@@ -1815,6 +1816,7 @@ mod layout_tests {
                             )
                             .unwrap();
                             view.diagrams.insert(code.clone(), Ok(media));
+                            view.media_dirty = true;
                             view.diagram_allowed = Rc::new(HashSet::from([code.clone()]));
                             view.list.reset(1);
                             view.diagram_style = crate::theme::style_generation();
