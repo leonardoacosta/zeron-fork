@@ -22,6 +22,10 @@ Users need trustworthy usage and performance information for model calls routed 
 - Explicit source, time window, units, coverage, missing-data, error, and staleness semantics.
 - Secure handling of credentials and metric data, and resilient retry/deduplication behavior.
 
+## Impact
+
+Adds the `omni-model-metrics` capability and a read-only metrics presentation backed by a verified Omni contract. Engine/API and UI paths must be pinned by the prerequisite evidence task before implementation. No gateway deployment, credential provisioning, MCP work, or speculative metrics schema is authorized.
+
 ## Not in scope
 
 - A generic gateway dashboard, gateway deployment/configuration, or write/control operations against Omni.
