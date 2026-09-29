@@ -5099,7 +5099,7 @@ impl DocHost {
                     sessions,
                     chat_id,
                     harness,
-                    request,
+                    *request,
                     Some(message_id.clone()),
                 )
                 .await?;

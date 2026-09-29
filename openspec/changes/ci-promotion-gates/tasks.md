@@ -24,13 +24,16 @@ Decisive correction (verified against the hosted API, read-only): `rust-quality`
 
 Consequence: `ui-promotion` cannot go green on this fork until the fork either (a) cleans up the 125 clippy errors, or (b) deliberately re-scopes or reverts the fork-local clippy enforcement by explicit decision. Because the branch ruleset does not yet require these contexts, the newly wired gates block nothing today; they are inert until an administrator requires them. This change wires the gate and does not resolve the fork-local lint debt.
 
-#### Bounded repair tasks (not executed; each needs its own approval)
+#### Authorized bounded repairs (2026-09-29)
 
-- R1: workspace clippy cleanup for `cargo clippy --workspace --all-targets --all-features -- -D warnings`. Scope is larger than the first two errors suggested: 125 errors over 35 lint kinds, concentrated in `crates/ui` (lib 86, lib test 116) with a few in `crates/engine` tests, plus the two originals:
-  - `clippy::large_enum_variant` in `crates/doc/src/commands.rs:39`; boxing `RunRequest` is serde-transparent but every construction site needs `Box::new` (`crates/ui/src/composer.rs`, `crates/mcp/src/tools.rs`, the `doc` crate, and about a dozen `crates/engine/tests/*` files).
-  - `clippy::too_many_arguments` in `crates/harness/src/opencode/mod.rs::post_prompt`; one function plus its three call sites (`:1637`, `:1731`, `:1896`).
-  - The remaining ~123 are mechanical test-and-UI lints (collapsible `if`, complex types, items after test modules, needless clones and borrows, unused imports, dead code).
-- R2 (alternative, not a cleanup): decide the fate of the fork-local `1427da6` lint enforcement. Options are a full cleanup (R1), scoping the job's clippy invocation to crates that pass, or reverting the job. Any option that suppresses lints rather than fixing them contradicts this change's "never lower lint severity" rule and needs to be recorded as an explicit fork policy decision, not a promotion workaround.
+The user's “do R1 and R2” approved the original two repairs, not a workspace-wide cleanup or a change in lint policy. The later redefinition of those IDs was incorrect and is superseded here.
+
+- R1 implemented: box `SessionCommandPayload::Run.request`, update construction sites, and unbox at engine dispatch. Existing attachment serialization round-trip passes.
+- R2 implemented: group `post_prompt` inputs in `PromptRequest` and native-command test fixture inputs in `NativeCommandFixture`. Dispatch behavior is unchanged.
+- Unrelated automated UI/engine cleanup was removed. No lint suppression or CI policy change was retained.
+- Local verification: `cargo fmt --all -- --check` PASS; `cargo test --locked -p zeron-doc` PASS (125 unit tests, 1 integration test); `cargo test --locked -p zeron-harness --lib opencode` PASS (57 tests); `cargo check --workspace --all-targets` PASS; `cargo clippy -p zeron-doc -p zeron-harness --all-targets --all-features -- -D warnings` PASS.
+- Broader harness run failed two Claude integration tests: `claude_skills_follow_native_availability_and_dollar_selection_keeps_arguments` and `shared_skill_colliding_with_builtin_keeps_file_delivery`. These failures were not diagnosed or waived.
+- Workspace Clippy still FAILS on separate engine argument-count and test-module-order lints. The earlier allow-probe also exposed UI debt. R1/R2 do not establish a green workspace or hosted CI. Hosted acceptance remains blocked.
 
 ## Existing checks to reuse
 

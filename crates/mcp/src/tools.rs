@@ -930,7 +930,7 @@ impl Tools {
                     .queue_command(
                         &chat.id,
                         &SessionCommandPayload::Run {
-                            request,
+                            request: Box::new(request),
                             message_id: uuid::Uuid::new_v4().to_string(),
                         },
                     )

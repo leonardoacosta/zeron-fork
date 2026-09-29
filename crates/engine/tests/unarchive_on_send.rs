@@ -99,7 +99,7 @@ fn complete_assistant_count(core: &EngineCore) -> usize {
 
 fn run_payload(message_id: &str) -> SessionCommandPayload {
     SessionCommandPayload::Run {
-        request: RunRequest {
+        request: Box::new(RunRequest {
             prompt: "back from the archive".into(),
             harness: None,
             model: None,
@@ -111,7 +111,7 @@ fn run_payload(message_id: &str) -> SessionCommandPayload {
             attachments: Vec::new(),
             worktree: None,
             resume: None,
-        },
+        }),
         message_id: message_id.into(),
     }
 }

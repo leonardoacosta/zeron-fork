@@ -1637,17 +1637,19 @@ async fn run_session(session: Session) {
     if let Err(e) = post_prompt(
         &server,
         &bus_tx,
-        &session_id,
-        dir,
-        &commands,
-        &request.prompt,
-        initial_native_command_selected,
-        turn_generation,
         &command_failure_tx,
-        TurnSpec {
-            model: model.as_ref(),
-            variant: variant.as_deref(),
-            attachments: &request.attachments,
+        PromptRequest {
+            session_id: &session_id,
+            dir,
+            commands: &commands,
+            prompt: &request.prompt,
+            native_command_selected: initial_native_command_selected,
+            turn_generation,
+            spec: TurnSpec {
+                model: model.as_ref(),
+                variant: variant.as_deref(),
+                attachments: &request.attachments,
+            },
         },
     )
     .await
@@ -1731,17 +1733,19 @@ async fn run_session(session: Session) {
                 match post_prompt(
                     &server,
                     &bus_tx,
-                    &session_id,
-                    dir,
-                    &commands,
-                    &steer,
-                    native_command_selected,
-                    turn_generation,
                     &command_failure_tx,
-                    TurnSpec {
-                        model: model.as_ref(),
-                        variant: variant.as_deref(),
-                        attachments: &[],
+                    PromptRequest {
+                        session_id: &session_id,
+                        dir,
+                        commands: &commands,
+                        prompt: &steer,
+                        native_command_selected,
+                        turn_generation,
+                        spec: TurnSpec {
+                            model: model.as_ref(),
+                            variant: variant.as_deref(),
+                            attachments: &[],
+                        },
                     },
                 )
                 .await
@@ -1896,17 +1900,19 @@ async fn run_session(session: Session) {
                             match post_prompt(
                                 &server,
                                 &bus_tx,
-                                &session_id,
-                                dir,
-                                &commands,
-                                &prompt,
-                                native_command_selected,
-                                turn_generation,
                                 &command_failure_tx,
-                                TurnSpec {
-                                    model: model.as_ref(),
-                                    variant: variant.as_deref(),
-                                    attachments: &[],
+                                PromptRequest {
+                                    session_id: &session_id,
+                                    dir,
+                                    commands: &commands,
+                                    prompt: &prompt,
+                                    native_command_selected,
+                                    turn_generation,
+                                    spec: TurnSpec {
+                                        model: model.as_ref(),
+                                        variant: variant.as_deref(),
+                                        attachments: &[],
+                                    },
                                 },
                             )
                             .await
@@ -2307,18 +2313,33 @@ fn command_body_v2(
 /// Both are fire-and-forget for the loop: the command endpoint is
 /// synchronous on the wire, so it rides a detached task and the bus
 /// delivers the actual turn.
+/// Session-scoped inputs for a single turn dispatch. Grouped to keep
+/// `post_prompt` within the argument-count lint without changing behavior.
+struct PromptRequest<'a> {
+    session_id: &'a str,
+    dir: Option<&'a str>,
+    commands: &'a [SlashCommand],
+    prompt: &'a str,
+    native_command_selected: bool,
+    turn_generation: u64,
+    spec: TurnSpec<'a>,
+}
+
 async fn post_prompt(
     server: &Server,
     bus_tx: &mpsc::Sender<BusMsg>,
-    session_id: &str,
-    dir: Option<&str>,
-    commands: &[SlashCommand],
-    prompt: &str,
-    native_command_selected: bool,
-    turn_generation: u64,
     command_failure_tx: &mpsc::UnboundedSender<NativeCommandFailure>,
-    spec: TurnSpec<'_>,
+    request: PromptRequest<'_>,
 ) -> Result<(), HarnessError> {
+    let PromptRequest {
+        session_id,
+        dir,
+        commands,
+        prompt,
+        native_command_selected,
+        turn_generation,
+        spec,
+    } = request;
     let TurnSpec {
         model,
         variant,

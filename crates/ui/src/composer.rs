@@ -8096,7 +8096,7 @@ impl Composer {
                     .and_then(|spec| spec.space_id.as_ref())
                     .is_some();
                 let command = SessionCommandPayload::Run {
-                    request: RunRequest {
+                    request: Box::new(RunRequest {
                         prompt: content.clone(),
                         harness: resolved.harness,
                         model: resolved.model.clone(),
@@ -8108,7 +8108,7 @@ impl Composer {
                         resume: None,
                         attachments: attachment_paths,
                         worktree: run_worktree,
-                    },
+                    }),
                     message_id: message_id.clone(),
                 };
                 let command = serde_json::to_value(&command)

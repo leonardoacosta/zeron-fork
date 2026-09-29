@@ -282,7 +282,7 @@ async fn exercise_projectless(command_first: bool) {
             .queue_command(
                 CHAT,
                 SessionCommandPayload::Run {
-                    request: RunRequest {
+                    request: Box::new(RunRequest {
                         prompt: "hello from no project".into(),
                         harness: None,
                         model: None,
@@ -294,7 +294,7 @@ async fn exercise_projectless(command_first: bool) {
                         attachments: Vec::new(),
                         worktree: None,
                         resume: None,
-                    },
+                    }),
                     message_id: message_id.into(),
                 },
             )

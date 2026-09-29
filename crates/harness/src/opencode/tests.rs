@@ -7,6 +7,14 @@ enum NativeCommandReply {
     DelayedHttp404,
 }
 
+/// Native-command wire behavior for a fixture: whether the command endpoint
+/// fails, and which canned reply the command POST should produce.
+#[derive(Clone, Copy)]
+struct NativeCommandFixture {
+    failure: bool,
+    reply: Option<NativeCommandReply>,
+}
+
 /// Real HTTP/SSE transport with explicitly ordered turn events. No provider or
 /// installed CLI is involved, so duplicate completion frames are reproducible.
 struct TurnWire {
@@ -65,8 +73,10 @@ impl TurnWire {
             answer,
             version,
             overrides,
-            command_failure,
-            None,
+            NativeCommandFixture {
+                failure: command_failure,
+                reply: None,
+            },
         )
         .await
     }
@@ -79,8 +89,10 @@ impl TurnWire {
             None,
             "2.0.3",
             json!({}),
-            false,
-            Some(reply),
+            NativeCommandFixture {
+                failure: false,
+                reply: Some(reply),
+            },
         )
         .await
     }
@@ -92,8 +104,7 @@ impl TurnWire {
         answer: Option<bool>,
         version: &'static str,
         overrides: Value,
-        command_failure: bool,
-        native_command_reply: Option<NativeCommandReply>,
+        native_command: NativeCommandFixture,
     ) -> Self {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -150,7 +161,7 @@ impl TurnWire {
                         }
                         return;
                     }
-                    if command_failure && is_post && path.ends_with("/command") {
+                    if native_command.failure && is_post && path.ends_with("/command") {
                         socket.write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 12\r\nConnection: close\r\n\r\nbad command!").await.unwrap();
                         return;
                     }
@@ -166,12 +177,12 @@ impl TurnWire {
                         return;
                     }
                     let health = json!({"version": version}).to_string();
-                    if let Some(native_command_reply) = native_command_reply
+                    if let Some(reply) = native_command.reply
                         && is_post
                         && path == "/session/fixture/command"
                     {
                         let _ = request_tx.send(path.clone());
-                        match native_command_reply {
+                        match reply {
                             NativeCommandReply::Disconnect => return,
                             NativeCommandReply::DelayedHttp404 => {
                                 if let Some(wait) = command_failure_wait.lock().await.take() {
@@ -211,7 +222,7 @@ impl TurnWire {
                             "/session" => ("200 OK", r#"{"id":"fixture"}"#),
                             "/command" => (
                                 "200 OK",
-                                if native_command_reply.is_some() {
+                                if native_command.reply.is_some() {
                                     r#"[{"name":"project-review","description":"Review"}]"#
                                 } else {
                                     "[]"
@@ -245,7 +256,7 @@ impl TurnWire {
         }
         drop(steer_tx);
         let interrupt = tokio_util::sync::CancellationToken::new();
-        let mut request = json!({"prompt": if native_command_reply.is_some() { "/project-review" } else { "first" }, "cwd":"", "sandbox":"workspace-write", "autoApprove": auto_approve, "model": if v2 { Some("opencode/muse") } else { None }, "reasoning": "low"});
+        let mut request = json!({"prompt": if native_command.reply.is_some() { "/project-review" } else { "first" }, "cwd":"", "sandbox":"workspace-write", "autoApprove": auto_approve, "model": if v2 { Some("opencode/muse") } else { None }, "reasoning": "low"});
         request
             .as_object_mut()
             .unwrap()
@@ -275,7 +286,7 @@ impl TurnWire {
             interrupt_grace: Duration::from_secs(2),
             kill_grace: Duration::from_millis(50),
             known_commands: Some(vec![SlashCommand {
-                name: if native_command_reply.is_some() {
+                name: if native_command.reply.is_some() {
                     "project-review"
                 } else {
                     "test"
@@ -284,7 +295,7 @@ impl TurnWire {
                 description: String::new(),
                 input_hint: None,
             }]),
-            initial_native_command_selected: native_command_reply.is_some(),
+            initial_native_command_selected: native_command.reply.is_some(),
         }));
         Self {
             bus,
@@ -294,7 +305,7 @@ impl TurnWire {
             interrupt,
             polls,
             command_failure_release: matches!(
-                native_command_reply,
+                native_command.reply,
                 Some(NativeCommandReply::DelayedHttp404)
             )
             .then_some(command_failure_release),
