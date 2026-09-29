@@ -1,7 +1,6 @@
 name: Preview networking
 on:
   pull_request:
-    paths: ['crates/preview/**', 'crates/proto/**', 'Cargo.toml', 'Cargo.lock', 'edge/**', '.github/workflows/preview-tests.yml']
   push:
     branches: [main]
     paths: ['crates/preview/**', 'crates/proto/**', 'Cargo.toml', 'Cargo.lock', 'edge/**', '.github/workflows/preview-tests.yml']
@@ -38,3 +37,16 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+
+  preview-promotion:
+    if: always()
+    needs: [networking, coordinator]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every Preview check
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          REQUIRED: networking,coordinator
+        shell: bash
+        run: |
+          python3 -c 'import json,os,sys; results=json.loads(os.environ["RESULTS"]); required=os.environ["REQUIRED"].split(","); failed=[name for name in required if name not in results or results[name].get("result") != "success"]; print("missing or non-success required jobs:", failed); sys.exit(bool(failed))'

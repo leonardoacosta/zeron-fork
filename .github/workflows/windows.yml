@@ -2,16 +2,6 @@ name: Windows tests
 
 on:
   pull_request:
-    paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'apps/zeron/**'
-      - 'dist/windows/**'
-      - 'crates/**'
-      - 'scripts/test-windows-*.ps1'
-      - 'scripts/package-windows.ps1'
-      - '.github/workflows/windows.yml'
   push:
     branches: [main]
     paths:
@@ -166,3 +156,16 @@ jobs:
             target/windows-lifecycle-*/result.txt
             target/windows-lifecycle-*/run-*.txt
           if-no-files-found: warn
+
+  windows-promotion:
+    if: always()
+    needs: [tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require Windows check
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          REQUIRED: tests
+        shell: bash
+        run: |
+          python3 -c 'import json,os,sys; results=json.loads(os.environ["RESULTS"]); required=os.environ["REQUIRED"].split(","); failed=[name for name in required if name not in results or results[name].get("result") != "success"]; print("missing or non-success required jobs:", failed); sys.exit(bool(failed))'

@@ -2,16 +2,6 @@ name: UI tests
 
 on:
   pull_request:
-    paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'crates/**'
-      - 'scripts/test-linux-browser.sh'
-      - 'scripts/run-macos-browser-fixture.sh'
-      - 'dist/macos/Info.plist'
-      - 'apps/ios/**'
-      - '.github/workflows/ui-tests.yml'
   push:
     branches: [main]
     paths:
@@ -179,7 +169,6 @@ jobs:
 
   ios-tests:
     needs: changes
-    if: needs.changes.outputs.ios == 'true'
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
@@ -245,3 +234,22 @@ jobs:
           name: linux-browser
           path: ${{ runner.temp }}/linux-browser
           if-no-files-found: warn
+
+  ui-promotion:
+    if: always()
+    needs:
+      - rust-quality
+      - session-sync-regressions
+      - ui-tests
+      - macos-frame-recovery
+      - ios-tests
+      - linux-browser
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every UI check
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          REQUIRED: rust-quality,session-sync-regressions,ui-tests,macos-frame-recovery,ios-tests,linux-browser
+        shell: bash
+        run: |
+          python3 -c 'import json,os,sys; results=json.loads(os.environ["RESULTS"]); required=os.environ["REQUIRED"].split(","); failed=[name for name in required if name not in results or results[name].get("result") != "success"]; print("missing or non-success required jobs:", failed); sys.exit(bool(failed))'
