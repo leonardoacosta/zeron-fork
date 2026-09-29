@@ -9,7 +9,8 @@ use futures::{SinkExt, StreamExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tokio_tungstenite::tungstenite::handshake::server::{
-    Request as WsRequest, Response as WsResponse,
+    Callback as WsCallback, ErrorResponse as WsErrorResponse, Request as WsRequest,
+    Response as WsResponse,
 };
 use zeron_engine::{AuthState, Engine, EngineConfig, EngineInfo, HarnessId, WorkspaceScope};
 use zeron_rpc::{connect_ws, memory_client, methods};
@@ -44,7 +45,19 @@ async fn rejecting_edge() -> (String, Arc<AtomicUsize>, tokio::task::JoinHandle<
             let seen = seen.clone();
             tokio::spawn(async move {
                 let mut request = [0u8; 4096];
-                let _ = stream.read(&mut request).await;
+                let read = stream.read(&mut request).await.unwrap_or_default();
+                if read == 0 {
+                    return;
+                }
+                let request_text = String::from_utf8_lossy(&request[..read]);
+                let target = request_text
+                    .lines()
+                    .next()
+                    .and_then(|line| line.split_whitespace().nth(1))
+                    .unwrap_or("");
+                if !is_engine_api_request(target) {
+                    return;
+                }
                 seen.fetch_add(1, Ordering::SeqCst);
                 let body = r#"{"error":"revoked"}"#;
                 let response = format!(
@@ -56,6 +69,32 @@ async fn rejecting_edge() -> (String, Arc<AtomicUsize>, tokio::task::JoinHandle<
         }
     });
     (format!("http://127.0.0.1:{port}"), requests, task)
+}
+
+fn is_engine_api_request(target: &str) -> bool {
+    [
+        "/registry/",
+        "/device/",
+        "/preview/",
+        "/releases/",
+        "/auth/",
+    ]
+    .iter()
+    .any(|prefix| target.starts_with(prefix))
+}
+
+#[test]
+fn rejecting_edge_counts_engine_routes_but_not_unrelated_root_probes() {
+    assert!(!is_engine_api_request("/"));
+    for path in [
+        "/registry/org/ws?device=dev",
+        "/device/dev/ws?role=host",
+        "/preview/org/ws?device=dev",
+        "/releases/manifest.json",
+        "/auth/refresh",
+    ] {
+        assert!(is_engine_api_request(path), "{path}");
+    }
 }
 
 struct DaemonEdge {
@@ -119,6 +158,19 @@ impl Drop for DaemonEdge {
 struct ActiveSocket {
     active: Arc<Mutex<HashMap<String, usize>>>,
     path: String,
+}
+
+struct CaptureWsPath(Arc<Mutex<String>>);
+
+impl WsCallback for CaptureWsPath {
+    fn on_request(
+        self,
+        request: &WsRequest,
+        response: WsResponse,
+    ) -> Result<WsResponse, WsErrorResponse> {
+        *self.0.lock().unwrap() = request.uri().path().to_string();
+        Ok(response)
+    }
 }
 
 impl Drop for ActiveSocket {
@@ -189,15 +241,7 @@ async fn serve_daemon_edge(
     }
 
     let path = Arc::new(Mutex::new(String::new()));
-    let captured = path.clone();
-    let Ok(ws) = tokio_tungstenite::accept_hdr_async(
-        stream,
-        move |request: &WsRequest, response: WsResponse| {
-            *captured.lock().unwrap() = request.uri().path().to_string();
-            Ok(response)
-        },
-    )
-    .await
+    let Ok(ws) = tokio_tungstenite::accept_hdr_async(stream, CaptureWsPath(path.clone())).await
     else {
         return;
     };

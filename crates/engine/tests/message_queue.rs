@@ -1456,8 +1456,7 @@ async fn composer_edit_commits_attachments_in_place_and_cancel_preserves_them() 
                 &lease_id,
                 FinishQueueEditAction::Commit,
                 Some("revised"),
-                Some(&base_text_hash),
-                Some(&paths),
+                Some((&base_text_hash, Some(&paths))),
             )
             .await
             .unwrap(),
@@ -1486,7 +1485,6 @@ async fn composer_edit_commits_attachments_in_place_and_cancel_preserves_them() 
                 FinishQueueEditAction::Cancel,
                 None,
                 None,
-                Some(&[]),
             )
             .await
             .unwrap(),

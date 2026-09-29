@@ -35,7 +35,7 @@ const HARNESSES: [HarnessId; 9] = [
 ];
 
 enum Delivery {
-    Run(RunRequest),
+    Run(Box<RunRequest>),
     Steer(String),
 }
 struct RecordingHarness {
@@ -90,7 +90,9 @@ impl Harness for RecordingHarness {
         request: RunRequest,
         controls: RunControls,
     ) -> Result<BoxStream<'static, Result<AgentEvent, HarnessError>>, HarnessError> {
-        self.delivery.send(Delivery::Run(request.clone())).unwrap();
+        self.delivery
+            .send(Delivery::Run(Box::new(request.clone())))
+            .unwrap();
         if self.fail_start.swap(false, Ordering::SeqCst) {
             return Ok(futures::stream::iter([Ok(AgentEvent::Done {
                 status: DoneStatus::Errored,

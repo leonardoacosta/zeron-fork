@@ -3602,8 +3602,7 @@ impl DocHost {
             lease_id,
             action,
             text,
-            expected_text_hash,
-            None,
+            expected_text_hash.map(|hash| (hash, None)),
         )
         .await
     }
@@ -3615,8 +3614,7 @@ impl DocHost {
         lease_id: &str,
         action: FinishQueueEditAction,
         text: Option<&str>,
-        expected_text_hash: Option<&str>,
-        attachments: Option<&[String]>,
+        edit: Option<(&str, Option<&[String]>)>,
     ) -> Result<FinishQueueEditOutcome, EngineError> {
         if !self.is_host(chat_id) {
             return Err(EngineError::Other(format!(
@@ -3624,9 +3622,7 @@ impl DocHost {
                 self.inner.config.device_id
             )));
         }
-        if action == FinishQueueEditAction::Commit
-            && (text.is_none() || expected_text_hash.is_none())
-        {
+        if action == FinishQueueEditAction::Commit && (text.is_none() || edit.is_none()) {
             return Err(EngineError::Other(
                 "commit requires text and expectedTextHash".into(),
             ));
@@ -3659,7 +3655,7 @@ impl DocHost {
                 return Ok(FinishQueueEditOutcome::Lost);
             }
             if action == FinishQueueEditAction::Commit
-                && (expected_text_hash != Some(base_text_hash.as_str())
+                && (edit.is_none_or(|(expected_text_hash, _)| expected_text_hash != base_text_hash)
                     || queue_text_hash(&item.text) != *base_text_hash)
             {
                 return Ok(FinishQueueEditOutcome::Conflict {
@@ -3676,7 +3672,7 @@ impl DocHost {
                 id,
                 replacement,
                 if action == FinishQueueEditAction::Commit {
-                    attachments
+                    edit.and_then(|(_, attachments)| attachments)
                 } else {
                     None
                 },

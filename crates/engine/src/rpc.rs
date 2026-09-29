@@ -611,16 +611,20 @@ pub struct EngineRpc {
 impl EngineRpc {
     fn assignment_record(
         &self,
-        id: String,
-        objective: String,
-        allowed_actions: Vec<String>,
-        linked_sessions: Vec<String>,
-        findings: Vec<String>,
-        evidence: Vec<String>,
-        reviews: Vec<zeron_proto::AssignmentReview>,
-        unresolved_questions: Vec<String>,
+        requested: zeron_proto::AssignmentRecord,
         revision: u64,
     ) -> Result<zeron_proto::AssignmentRecord, RpcError> {
+        let zeron_proto::AssignmentRecord {
+            id,
+            objective,
+            allowed_actions,
+            linked_sessions,
+            findings,
+            evidence,
+            reviews,
+            unresolved_questions,
+            ..
+        } = requested;
         let bytes = objective.len()
             + allowed_actions.iter().map(String::len).sum::<usize>()
             + linked_sessions.iter().map(String::len).sum::<usize>()
@@ -736,17 +740,7 @@ impl EngineRpc {
         {
             return serde_json::from_str(&saved).map_err(|e| RpcError::Failed(e.to_string()));
         }
-        let record = self.assignment_record(
-            p.id,
-            p.objective,
-            p.allowed_actions,
-            p.linked_sessions,
-            p.findings,
-            p.evidence,
-            p.reviews,
-            p.unresolved_questions,
-            1,
-        )?;
+        let record = self.assignment_record(requested, 1)?;
         let payload =
             serde_json::to_string(&record).map_err(|e| RpcError::Failed(e.to_string()))?;
         self.assignment_store
@@ -833,17 +827,7 @@ impl EngineRpc {
                     .into(),
             ));
         }
-        let record = self.assignment_record(
-            p.id,
-            p.objective,
-            p.allowed_actions,
-            p.linked_sessions,
-            p.findings,
-            p.evidence,
-            p.reviews,
-            p.unresolved_questions,
-            revision,
-        )?;
+        let record = self.assignment_record(requested, revision)?;
         let raw = serde_json::to_value(&record).map_err(|e| RpcError::Failed(e.to_string()))?;
         let payload = requested_payload;
         let result = self
@@ -2270,8 +2254,9 @@ impl RpcService for EngineRpc {
                         &p.lease_id,
                         action,
                         p.text.as_deref(),
-                        p.expected_text_hash.as_deref(),
-                        p.attachments.as_deref(),
+                        p.expected_text_hash
+                            .as_deref()
+                            .zip(Some(p.attachments.as_deref())),
                     )
                     .await
                     .map_err(|e| RpcError::Failed(e.to_string()))?;
