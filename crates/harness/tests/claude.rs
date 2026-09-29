@@ -36,6 +36,22 @@ fn harness() -> ClaudeHarness {
     ClaudeHarness::new().with_executable(fixture_path())
 }
 
+fn isolate_home_for_test(name: &str) -> bool {
+    const ISOLATED: &str = "ZERON_CLAUDE_TEST_ISOLATED_HOME";
+    if std::env::var_os(ISOLATED).is_some() {
+        return false;
+    }
+    let home = tempfile::tempdir().unwrap();
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", name])
+        .env(ISOLATED, "1")
+        .env("HOME", home.path())
+        .status()
+        .unwrap();
+    assert!(status.success(), "isolated {name} subprocess failed");
+    true
+}
+
 fn request(prompt: &str) -> RunRequest {
     RunRequest {
         prompt: prompt.into(),
@@ -769,6 +785,9 @@ async fn command_discovery_tracks_project_changes() {
 
 #[tokio::test]
 async fn shared_skill_colliding_with_builtin_keeps_file_delivery() {
+    if isolate_home_for_test("shared_skill_colliding_with_builtin_keeps_file_delivery") {
+        return;
+    }
     use zeron_proto::invocation::{Invocation, harness_prompt};
     let cwd = tempfile::tempdir().unwrap();
     std::fs::create_dir(cwd.path().join(".git")).unwrap();
@@ -805,6 +824,11 @@ async fn shared_skill_colliding_with_builtin_keeps_file_delivery() {
 
 #[tokio::test]
 async fn claude_skills_follow_native_availability_and_dollar_selection_keeps_arguments() {
+    if isolate_home_for_test(
+        "claude_skills_follow_native_availability_and_dollar_selection_keeps_arguments",
+    ) {
+        return;
+    }
     use zeron_proto::{
         HarnessId,
         invocation::{Invocation, harness_prompt},
