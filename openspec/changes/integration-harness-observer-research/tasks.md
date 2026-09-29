@@ -136,5 +136,13 @@ Research itself has no implementation iterations. If a separately approved imple
 ## Completion boundary
 A complete research pass means schemas are filled with cited evidence or explicit `unknown`/`blocked` outcomes and the planning checks pass. It does not mean a provider was selected, an adapter API was frozen, or all future adapters can be implemented. External/native acceptance unavailable means blocked, not complete.
 
+## Research execution record (2026-09-27)
+- [x] Read applicable PRD, execution-map, prerequisite, spec, and listed read-only anchors.
+- [x] Bounded public-doc discovery/fetch via Firecrawl CLI 1.23.3; source citations and URL/DNS limitations recorded in the design register.
+- [x] Recorded current local source facts separately from docs; no local observations or runtime probes authorized/performed.
+- [x] Added separate subject, scenario, and child decision records. Unresolved product identity and integration contracts remain `unknown`/`blocked`; no candidate selected.
+- [x] Scratch schema checker self-tests (6/6), canonical evidence export validates, `python3 openspec/changes/prd-execution-map/validate.py` passes, and `git diff --check` passes. These checks certify shape/planning only, not provider functionality.
+- Limitation: local checkout commit was not captured; current code spans are static source citations. Jcode swarm/API and Herdr compatibility/security boundaries are unresolved. Exact `Laya` and `empryo` identities remain unknown. C03 remains unverified because no runtime availability check was authorized.
+
 ## Rollback
 No product/provider state changes are allowed. Discard temporary checker/evidence files after validation unless separately authorized. Only the two canonical files listed in scope may be edited for this change.

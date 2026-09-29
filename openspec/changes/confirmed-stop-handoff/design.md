@@ -36,7 +36,7 @@ Define pause-requested, stopping, stopped-confirmed, human-owned, handback-reque
 Persist lifecycle transition before acknowledgment. Downgrade active/uncertain work to hold; no replay of unconfirmed external effects.
 
 ## Acceptance boundary
-Real harmless subprocess with descendant writes proves last write/exit boundary; native harness-specific stopping requires its own evidence.
+C02 needs a separate owner-level network-loss test: during a pending stop, drop the remote observation/transport and assert status becomes uncertain, conflicting work stays held, and unrelated isolated work progresses. The local harmless-subprocess descendant-write test does not exercise network loss. Real harmless subprocess with descendant writes separately proves the last-write/exit boundary; native harness-specific stopping requires its own evidence.
 Structural inspection and provider doubles may support but cannot replace this boundary. External/native prerequisites unavailable means blocked, not complete. User has authorized local homelab/Mac work previously; that does not authorize unrelated Brown/cloud/provider mutations or spend.
 
 ## Implementation readiness

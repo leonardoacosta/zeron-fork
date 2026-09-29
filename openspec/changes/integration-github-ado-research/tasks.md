@@ -5,6 +5,21 @@
 **Status:** Research planning only. No product implementation readiness or interface selection.
 **Scope:** Only this change's `design.md` and `tasks.md` may be changed by this work. No credentials, external APIs, private access, endpoint probes, writes, spend, or Brown resources.
 
+## Research result (2026-09-27)
+
+- [x] Inspected only listed local source anchors and direct behavior. Exact source spans and per-operation authority/side-effect/failure/current-limit records are in `design.md` → Local behavior records.
+- [x] Read official public GitHub PR/auth documentation (API version 2026-03-10), Microsoft Learn Azure DevOps Git Pull Requests (API 7.1), and official Tailscale Aperture overview/how-it-works/reference and Tailscale transport documentation. Evidence rows include canonical URLs, headings, observed date and scope limits.
+- [x] Added complete evidence-schema rows, explicit unknown/blocked claims, provisional child adapter records with all required fields, and scenario/PRD clause coverage in `design.md`.
+- [x] Bounded the unknowns: GitHub API-wide retry/rate/idempotency detail; exact ADO deployment/authority/auth and operational semantics; Aperture runtime/version/connector/workflow authority; named external source of truth; and product policy for remote-only repositories.
+- [x] No provider APIs, credentials, private access, endpoint probes, Brown resources, writes, install/configuration, or commits. Firecrawl 1.23.3 was present and authenticated, but its inspected help did not expose a DNS/every-redirect validation guarantee; no Firecrawl URL fetch was made. Official public-document lookup used the built-in web research interface.
+
+| Check | Result |
+|---|---|
+| Evidence-checker self-tests | Not applicable: no evidence-checker/self-test script was identified in this change contract or required local anchors; no checker was invented or run. |
+| `python3 openspec/changes/prd-execution-map/validate.py` | Exit 0: PASS, 36 child changes, all 19 PRD references, 10 CI barriers, acyclic dependencies, existing anchors and scenario mappings. Planning validation only. |
+| `git diff --check` | Exit 0. |
+| Commit / provider acceptance | None; not authorized and not claimed. |
+
 ## R1. Recover authority and inspect local implementation
 1. Read `../../../docs/fork-prd.md`, `../prd-execution-map/design.md`, `specs/integration-github-ado-research/spec.md`, and this change's `design.md`. List applicable ZF-19/ZF-07 clauses, C01-C04, and Unknown prerequisite scenario in the final coverage table. Existing read-only anchors are `crates/engine/src/source_control.rs`, `crates/mcp/src/tools.rs`, `crates/mcp/src/jsonrpc.rs`, `docs/mcp.md`, and `docs/fork-prd.md`; no other source paths are in scope.
 2. From repository root run these read-only commands:

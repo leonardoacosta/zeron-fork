@@ -60,6 +60,9 @@ The existing `LocalImporter` is not the named-profile migration implementation. 
 
 No automatic copy/move/rename of an existing account store. Enumerate legacy identity/root read-only and ask for explicit binding/migration intent at the authorized surface. Preserve source bytes and retain a manifest with source identity, target identity, source digest and observed completion. Existing partial target or ambiguous credentials/uploads grants blocks. A crash mid-copy must not publish a ready target or execute recovered sessions. No overwriting target, deleting source or credential copy. This non-destructive policy does not decide future UX or allow providers to read Brown data.
 
+## C04: Extensible creation without implicit access
+After the work-profile catalog and profile-access-enforcement prerequisites are promoted, the named-profile runtime integration must create and resolve at least four distinct real catalog records through the public owner API, with no profile enum or three-name branch, then attempt a protected operation using the fourth binding with no explicit grants. Assert the record persists and is selectable by stable ID/revision, policy returns denied/unavailable, no default account/repository/tool is selected, and zero protected reads, credential reads, session creation or harness calls occur. This is a runtime integration acceptance, not replaced by catalog-only name validation or transaction tests. Before its prerequisite gates pass, keep C04 runtime acceptance blocked; do not advertise named-profile execution.
+
 ## Acceptance scenarios (canonical)
 - C01: Two profiles on one device cannot retrieve each other's assignment, transcript, upload or repository binding through local or remote RPC.
 - C02: Rename a profile while a session runs: identity stays stable and the frozen binding does not silently change.

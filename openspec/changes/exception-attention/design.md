@@ -23,6 +23,8 @@ Deliver notification only after record commits. Notifications are advisory proje
 5. Resolve stale generation: reject, current incident unaffected. Redacted summary cannot contain provider tokens or unrelated private content.
 6. Native Mac/Linux delivery test observes actual banner/activity when available; receipt absence is unknown. Do not call screenshot evidence proof of human acknowledgment.
 
+7. C04 isolation: create an active redacted incident under profile A with a destination bound to profile A; attempt list/watch/ack via profile B's owner context and deliver/project the event through profile B's native notifier and in-product activity feed. Assert profile B receives no incident ID, summary, source, destination, notification, activity row or acknowledgment side effect; profile A can still retrieve its record. Include identical affected-work/run IDs in both profiles to prove profile binding, not key coincidence, enforces isolation.
+
 ## Canonical scenarios
 - C01: Repeated same stop uncertainty creates one grouped alert with updated observations, not an alert storm.
 - C02: Notification delivery fails: blocked state remains durable and visible after restart.

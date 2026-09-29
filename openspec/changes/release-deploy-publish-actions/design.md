@@ -39,5 +39,7 @@ Per-target rollback recipe required before dispatch; back up user data and execu
 Harmless local install with service recovery and rollback, then separately authorized external destinations only when selected.
 Structural inspection and provider doubles may support but cannot replace this boundary. External/native prerequisites unavailable means blocked, not complete. User has authorized local homelab/Mac work previously; that does not authorize unrelated Brown/cloud/provider mutations or spend.
 
+For C04, exercise the unsupported-capability boundary without real credentials: when signing or provider capability is unavailable, assert a typed blocked/unsupported result and no release/deploy/publish side effect, with signing/security configuration unchanged. This checks safe refusal only; it does not satisfy external signing/provider acceptance, which stays blocked until its prerequisites and authorization are separately established.
+
 ## Implementation readiness
 This is a bounded behavior contract, not code-complete implementation instructions. A `feature` refinement must replace discovery tasks with exact 2–5 minute test/red/minimal-code/green/commit steps, complete code blocks and actual symbol names, then pass review. Newly created paths must be explicitly listed there. If provider/UI/product judgment remains genuinely unresolved, retain blocked status and ask that one question rather than choose silently.

@@ -48,3 +48,17 @@ Complete means every bounded question and scenario has cited evidence or explici
 
 ## Rollback
 Only the two canonical files listed in scope may change. No browser/provider state changes occur.
+
+## Research execution status (2026-09-27)
+
+- R1: inspected `fork-prd.md`, execution-map design, spec, this design, prerequisite design, and only listed local source anchors. Local facts and exact spans are classified `local_source` in design.md. Graft queries returned no graph; source paths were then inspected directly. No fixture was run.
+- R2: official docs reviewed: WebKit profile/data-store article (2023-08-30); Playwright isolation, BrowserContext, Browser, authentication and tracing pages (retrieved 2026-09-27; pages did not state a pinned release in fetched content). URLs, sections, excerpts and limits are in design.md. Playwright is documentation subject only, not a selection.
+- R3: evidence rows, C01-C03 and unknown-prerequisite records, and complete provisional child adapter schema are in design.md. C01 blocked; C02 unknown; C03 unknown; prerequisite blocked. `write_operations=not authorized` retained.
+- R4: no browser/profile/private-page/provider/API/network-probe/install/config/cloud operation was performed. Planning validation remains to run below.
+
+Required acceptance sentences retained exactly in design.md:
+“Provider supports screenshots but cannot isolate storage: does not satisfy session isolation.”
+“Provider close command returns before tool action stops: cancellation remains unverified.”
+“Provider needs cloud data upload: disclose data boundary before any private page use.”
+
+Validation: `python3 openspec/changes/prd-execution-map/validate.py` — exit 0 (`PASS: 36 child changes, all 19 PRD references, 10 CI barriers, acyclic dependencies, existing anchors and scenario mappings`; planning validation only). `git diff --check` — exit 0.

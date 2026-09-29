@@ -34,7 +34,7 @@ Define independently versioned workflows with stages, agent choices, checks, fai
 Immutable versions and additive references; old readers fail explicitly on unsupported workflow versions. Roll back default pointers without rewriting active runs.
 
 ## Acceptance boundary
-Precedence, version pinning, invalid override and restart tests through owner RPC; UI explanation delivered by presentation changes.
+C04 investigation-only acceptance must run the selected workflow through the owner RPC and restart/re-read the findings record using the pinned workflow version. Assert findings persist, with zero candidate/delivery-stage records, zero delivery/effect-ledger rows and zero external delivery side effects. This does not prove code-producing workflow or delivery acceptance. Precedence, version pinning, invalid override and restart tests through owner RPC; UI explanation delivered by presentation changes.
 Structural inspection and provider doubles may support but cannot replace this boundary. External/native prerequisites unavailable means blocked, not complete. User has authorized local homelab/Mac work previously; that does not authorize unrelated Brown/cloud/provider mutations or spend.
 
 ## Implementation readiness

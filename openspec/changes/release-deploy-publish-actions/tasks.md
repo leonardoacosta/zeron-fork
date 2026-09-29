@@ -44,6 +44,7 @@ Expected: complete coverage/acyclic dependency/path checks pass, exit0; whitespa
 - C02: Install fails after staging: retain previous executable/data and report rollback result.
 - C03: Publish returns success but target serves old content: delivered may be observed but outcome-confirmed fails.
 - C04: Unsupported signing/provider credentials: blocked acceptance, no disabling security or password resets.
+- C04 boundary test: run with signing/provider capability unavailable and assert a typed blocked/unsupported result, no release/deploy/publish side effect, and unchanged signing/security configuration. Do not request or reset credentials; keep external acceptance separately blocked until authorized prerequisites exist.
 
 ## CI phase after every implementation iteration
 - [ ] Run exact refined feature tests and core/affected-platform CI from `../prd-execution-map/design.md`. Verify at least one test actually selected; preserve failing evidence. No next iteration/round promotion while required checks fail or are missing.

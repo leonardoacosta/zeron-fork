@@ -49,8 +49,9 @@ Raw ProcessRequest/Command helpers are not policy sources. Callers that bypass t
 6. Agent account fixture snapshots fake credential files. Denied activation/login completion/forget leaves byte-identical files. No live credential mutation in test.
 7. Steer to prior generation after agent replacement is denied. An unrelated isolated run still progresses.
 8. Missing or corrupt policy cannot become unrestricted default; an old client without named-profile capability receives explicit unsupported behavior.
+9. Unavailable selected account/tool: request a configured account reference whose harness slot or executable is unavailable while a global/default alternative exists; assert the owning engine returns the typed unavailable result, performs zero global/default selection, credential reads, harness calls or fallback dispatch, and preserves the stored selection.
+10. Direct-session/assignment parity: run the same protected operation through both entry paths under the same binding/policy and assert identical allow/deny outcomes.
 
-## Canonical scenarios
 - C01: A trusted remote device supplies a foreign profile/account/repository ID: reject before any read or child process starts.
 - C02: A symlink or renamed checkout escapes the approved repository root: reject the resolved target.
 - C03: Policy changes after preflight but before dispatch: dispatch rechecks and denies stale authority.

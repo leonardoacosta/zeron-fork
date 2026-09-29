@@ -26,6 +26,10 @@ Expected: one line per anchor, exit0. Missing path means re-discover with graft 
 ## Foundation dependency
 Exact wire/catalog implementation moved to `../work-profile-catalog/tasks.md`. Do not duplicate that checklist or mark this runtime unit complete from foundation tests.
 
+## D2. Freeze cross-slice C04 acceptance
+- [ ] Assign C04 an exact public catalog/runtime test path after A+B contracts exist and before readiness review. Test creation/resolution of at least four distinct profile records with no enum/three-name switch, then attempt a protected operation under the fourth profile with no explicit grant. Assert stable ID/revision persists, access is denied/unavailable, no default account/repository/tool is selected, and no protected or credential read, session creation, or harness call occurs. Keep catalog-only serialization/transaction tests separate; they do not prove runtime no-default-grant behavior.
+- [ ] Record the exact test name/path, assertions, prerequisites (`work-profile-catalog` plus `profile-access-enforcement`), and which change owns each assertion. If the runtime enforcement prerequisite has not passed, mark the runtime part blocked and do not advertise capability.
+
 ## C. Runtime binding, early EngineInfo and daemon attach refusal
 **Depends on:** A wire contract, B catalog persistence, and `profile-access-enforcement` after it is split to depend only on the A+B contract child. C does not implement named-profile execution or advertise its capability without that resource-enforcement prerequisite.
 

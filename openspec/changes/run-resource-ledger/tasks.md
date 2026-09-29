@@ -25,7 +25,7 @@ Expected: one line per anchor, exit0. Missing path means re-discover with graft 
 
 ## D2. Freeze one implementable contract
 - [ ] Record exact DTO fields/enums, state transitions, error classes and owning API boundaries in design.md. For a research-only unit, record actual provider/version observations and explicitly blocked decisions instead of inventing DTOs.
-- [ ] Assign each C-scenario one exact native test path/name and its observable assertion. List existing files modified versus new files created, role of each file and shared-file conflicts with other changes.
+- [ ] Assign each C-scenario one exact native test path/name and its observable assertion. For C03, the fixture must omit provider cost while an unknown-cost policy is configured; assert value `unknown` (never zero), policy enforced before another launch, and no guessed cost/successful settlement. List existing files modified versus new files created, role of each file and shared-file conflicts with other changes.
 - [ ] Enumerate crash points, concurrent callers, stale revisions, unauthorized caller, unavailable owner/provider and compatibility with older readers. Explain rollback using this design's explicit rule.
 - [ ] Replace D-only tasks with atomic failing-test/run-red/minimal-code/run-green/commit steps using actual complete code and exact commands. Do not write a second plan file or mark implementation-ready while this step is incomplete.
 

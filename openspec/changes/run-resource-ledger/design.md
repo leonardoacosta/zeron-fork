@@ -35,7 +35,7 @@ Persist reservations and observed usage bound to run/profile/resource policy. Un
 Append-only ledger migration; reconcile outstanding reservations before rollback. Do not discard charges or return allocations until effects are known.
 
 ## Acceptance boundary
-Concurrent reservation/restart integration and provider fixture with duplicated/missing usage; real supported provider observations separately labelled.
+Concurrent reservation/restart integration and provider fixture with duplicated/missing usage; real supported provider observations separately labelled. The provider fixture must also exercise C03 with a selected provider response that omits cost while a bounded unknown-cost policy applies. Assert the displayed/returned value is `unknown` (never numeric zero), the configured unknown-cost policy is enforced before another launch, and no guessed provider cost or successful budget settlement is recorded. Keep fixture evidence synthetic; real provider semantics remain separately evidenced or blocked.
 Structural inspection and provider doubles may support but cannot replace this boundary. External/native prerequisites unavailable means blocked, not complete. User has authorized local homelab/Mac work previously; that does not authorize unrelated Brown/cloud/provider mutations or spend.
 
 ## Implementation readiness

@@ -195,7 +195,7 @@ mod tests {
 
 ## D2. Freeze one implementable contract
 - [ ] Record exact DTO fields/enums, state transitions, error classes and owning API boundaries in design.md. For a research-only unit, record actual provider/version observations and explicitly blocked decisions instead of inventing DTOs.
-- [ ] Assign each C-scenario one exact native test path/name and its observable assertion. List existing files modified versus new files created, role of each file and shared-file conflicts with other changes.
+- [ ] Assign each C-scenario one exact native test path/name and its observable assertion. For C02 specifically, test network loss during stop and assert `StopUncertain`, rejection of conflicting work, and continued progress of an unrelated isolated run; do not treat the current unrelated-Lifecycle transition test as sufficient network-failure evidence. Keep the real harmless-subprocess last-write/exit check as a separate quiescence acceptance. List existing files modified versus new files created, role of each file and shared-file conflicts with other changes.
 - [ ] Enumerate crash points, concurrent callers, stale revisions, unauthorized caller, unavailable owner/provider and compatibility with older readers. Explain rollback using this design's explicit rule.
 - [ ] Replace D-only tasks with atomic failing-test/run-red/minimal-code/run-green/commit steps using actual complete code and exact commands. Do not write a second plan file or mark implementation-ready while this step is incomplete.
 

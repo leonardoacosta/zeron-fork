@@ -34,8 +34,7 @@ Keep agent-finished, verified, accepted, delivered and outcome-confirmed separat
 Persist decision and inputs atomically, append revisions instead of rewriting past approvals. Rollback holds unsupported decisions.
 
 ## Acceptance boundary
-Owner RPC transitions with stale/revoked/external-rejection cases and restart at decision commit boundary.
-Structural inspection and provider doubles may support but cannot replace this boundary. External/native prerequisites unavailable means blocked, not complete. User has authorized local homelab/Mac work previously; that does not authorize unrelated Brown/cloud/provider mutations or spend.
+C04 real acceptance must use the owner RPC with required internal checks passing and an external reviewer rejection. Persist the held decision, restart at the decision commit boundary, then re-read the same output/evidence binding and assert it remains held with the external rejection intact and no accepted/delivery/effect record. The owner-RPC transitions for stale/revoked/external rejection must be checked against this durable state. Structural inspection and provider doubles may support but cannot replace this boundary. External/native prerequisites unavailable means blocked, not complete. User has authorized local homelab/Mac work previously; that does not authorize unrelated Brown/cloud/provider mutations or spend.
 
 ## Implementation readiness
 This is a bounded behavior contract, not code-complete implementation instructions. A `feature` refinement must replace discovery tasks with exact 2–5 minute test/red/minimal-code/green/commit steps, complete code blocks and actual symbol names, then pass review. Newly created paths must be explicitly listed there. If provider/UI/product judgment remains genuinely unresolved, retain blocked status and ask that one question rather than choose silently.

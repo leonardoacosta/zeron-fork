@@ -9,6 +9,7 @@ A bounded hosted gate reuses existing workflows. It adds no product API or gener
 - `.github/workflows/windows.yml`: Windows `tests`; manual-only `native-gui` is not required.
 - `Cargo.toml`: workspace and locked Rust test configuration anchor; no product-code edit.
 - `openspec/README.md`: OpenSpec conventions anchor; no edit.
+- Optional only if explicitly retained at named approval: `openspec/changes/ci-promotion-gates/verify_round.py`, an untrusted local consistency helper. It is not part of hosted workflow enforcement and cannot authorize promotion.
 
 Use distinct `ui-promotion`, `preview-promotion`, and `windows-promotion` summary jobs in their existing workflows, with `if: always()`, `needs` for every required job, and a check that every `needs.*.result == success`. Remove `paths:` only from each `pull_request` trigger so branch protection always sees its summary, including docs-only PRs. Keep push filters and existing test jobs. This checks the integrated PR merge revision within the same workflow run and avoids polling/API integrations. Make `ios-tests` unconditional so a skipped required job cannot silently pass. Require Preview's matrix job as a whole, meaning each matrix leg must succeed. Never include manual-only `native-gui`.
 
@@ -24,7 +25,7 @@ The complete YAML and test source live only in tasks.md. Do not copy an earlier 
 - C04: Given native platform/auth credentials are unavailable, record blocked evidence and hold the affected acceptance, without disabling a job to manufacture green.
 
 ## Acceptance boundary
-A stdlib source test guards exact structure, but cannot demonstrate hosted merge blocking. Admin branch rules plus a failing disposable PR are separate required evidence. No push/spend/hosted setting change is part of this plan refinement.
+The canonical scope covers the three workflow summaries and `tests/test_promotion_gate.py`. The round-evidence checker is optional local review tooling and only in scope if explicitly retained at named implementation approval; it is never a merge/deploy authority source. If deferred, no helper file or self-test is required. A local helper self-test cannot prove hosted enforcement.
 
 Use the complete corrected YAML blocks in tasks.md as code authority. Summary steps explicitly use bash, including the Windows workflow whose defaults otherwise use pwsh. Require branches to be up to date before merge or use a separately designed merge-queue gate; an old base merge result cannot promote a new integrated tree.
 

@@ -1,7 +1,7 @@
 # Exact-commit CI promotion gate plan
 
 **Goal:** Add fail-closed required summaries to the existing UI, Preview, and Windows workflows.
-**Scope:** Implementation would change only `.github/workflows/ui-tests.yml`, `.github/workflows/preview-tests.yml`, `.github/workflows/windows.yml`, plus `openspec/changes/ci-promotion-gates/tests/test_promotion_gate.py`. No product code or new workflow. No workflow implementation occurred in this planning task.
+**Scope:** Workflow implementation changes only `.github/workflows/ui-tests.yml`, `.github/workflows/preview-tests.yml`, `.github/workflows/windows.yml`, plus `openspec/changes/ci-promotion-gates/tests/test_promotion_gate.py`. The round-evidence consistency checker below is a separately bounded local helper in this same change, not a workflow or hosted gate. If retained, it additionally creates `openspec/changes/ci-promotion-gates/verify_round.py`; it is untrusted review support only and never changes promotion authority. No product code or new workflow. No implementation occurred in this planning task.
 **Readiness:** exact implementation proposal, pending named approval; hosted promotion acceptance remains blocked until configured and observed. The snippets and stdlib predicate are executable, but hosted branch-rule setup and a disposable failing-PR proof remain outstanding. An administrator must require all three summary contexts and verify failure blocks merge. Local structural tests are not hosted enforcement.
 
 ## Pre-implementation baseline check
@@ -210,9 +210,9 @@ Hosted acceptance is separate: an administrator requires the three `ui-promotion
 ## CI phase after every implementation iteration
 - [ ] Run the test red before workflow changes and green after; record commands and results.
 - [ ] Confirm all needed job IDs, matrix behavior, unconditional PR runs, and no degraded test steps.
-- [ ] Validate workflow YAML if an installed parser exists; run `git diff --check`.
+- [ ] Run actionlint and structural tests for the three workflows; independently note whether the optional `verify_round.py` was retained and, only if retained, run its self-test.
 - [ ] Record hosted branch-rule and failing-PR evidence separately. Without it, hosted enforcement remains blocked.
-- [ ] Commit only the three workflows and test file after implementation approval.
+- [ ] Commit only the three workflows, `test_promotion_gate.py`, and (if retained) `verify_round.py` after implementation approval. Do not include unrelated files or hosted configuration.
 
 ## Rollback
 Revert the three workflow changes. Do not relax branch protection automatically. A missing required context should block merging until an administrator deliberately revises policy.
@@ -222,6 +222,8 @@ After applying the edits, run `actionlint -shellcheck= -pyflakes= .github/workfl
 
 ## Round evidence consistency check (never an authority source)
 **Proposed create:** `openspec/changes/ci-promotion-gates/verify_round.py`. This belongs to the canonical CI change, not a second task lifecycle. Inputs are a reviewed round manifest and CI-observation record retained as evidence attachments to tasks.md. Success means eligible_for_review only. No signature service, new secret or automatic merge/deploy consumer is introduced.
+
+This checker is optional review tooling, separate from the three required workflow summaries and `test_promotion_gate.py`. During named implementation approval, explicitly retain or defer it. If deferred, skip this entire section and do not create its file; workflow summary implementation/acceptance remains independently scoped. If retained, include its file in the approved file list and use the steps below only after the workflow work. It cannot satisfy or replace hosted branch-rule/failing-PR acceptance.
 
 - [ ] Create exact code below and run `python3 openspec/changes/ci-promotion-gates/verify_round.py --self-test`; require12 tests. Every failed required test blocks; evidence cannot change a manifest's test unit into research. Ignored tests must be predeclared non-required with separate coverage references; no waiver of required behavior.
 ```python
@@ -576,7 +578,7 @@ if __name__ == "__main__":
     else:
         raise SystemExit(main(sys.argv))
 ```
-- [ ] Generate reviewed manifest from selected unit set and exact integrated commit. Do not use a branch name or HEAD after further edits. Required unit kind/IDs/jobs belong to reviewed manifest, not agent-generated success report. Job names match actual native CI contexts, not guessed names.
+- [ ] Do not invoke, create or commit `verify_round.py` unless its bounded-helper scope is retained in the approved implementation. This is local review support, not hosted enforcement or promotion authorization.
 - [ ] Populate record only from observed CI run/job and artifact outputs. Independent reviewer opens native run URLs, verifies tested merge/head/base revision, required jobs, real selected counts and evidence artifacts. Self-reported JSON can be forged; this checker intentionally cannot prove provenance and must never be sole promotion input.
 - [ ] Run `python3 openspec/changes/ci-promotion-gates/verify_round.py MANIFEST.json EVIDENCE.json`. Nonzero blocks review. Zero does not authorize merge, execution or delivery; current required hosted checks and independent product acceptance still gate promotion.
 - [ ] A research unit may finish a bounded research deliverable with explicit unknown findings, but no dependent implementation may promote while its required capability remains unknown/blocked. Do not use research success as provider support.

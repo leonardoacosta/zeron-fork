@@ -218,7 +218,7 @@ mod tests {
 
 ## D2. Freeze one implementable contract
 - [ ] Record exact DTO fields/enums, state transitions, error classes and owning API boundaries in design.md. For a research-only unit, record actual provider/version observations and explicitly blocked decisions instead of inventing DTOs.
-- [ ] Assign each C-scenario one exact native test path/name and its observable assertion. List existing files modified versus new files created, role of each file and shared-file conflicts with other changes.
+- [ ] Assign each C-scenario one exact owner-RPC/native test path/name and observable assertion. For C04, configure at least one passing internal check plus a required external-review row; persist an explicit external rejection, assert the gate remains held/unaccepted despite the pass, restart the owner store, and re-read the same output/evidence binding to assert the rejection and held decision remain. Assert no acceptance or delivery/effect record appears. Do not substitute an internal-test failure for external rejection. List existing files modified versus new files created, role of each file and shared-file conflicts with other changes.
 - [ ] Enumerate crash points, concurrent callers, stale revisions, unauthorized caller, unavailable owner/provider and compatibility with older readers. Explain rollback using this design's explicit rule.
 - [ ] Replace D-only tasks with atomic failing-test/run-red/minimal-code/run-green/commit steps using actual complete code and exact commands. Do not write a second plan file or mark implementation-ready while this step is incomplete.
 
