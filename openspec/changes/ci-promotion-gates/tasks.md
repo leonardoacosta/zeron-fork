@@ -35,6 +35,19 @@ The user's “do R1 and R2” approved the original two repairs, not a workspace
 - Broader harness run failed two Claude integration tests: `claude_skills_follow_native_availability_and_dollar_selection_keeps_arguments` and `shared_skill_colliding_with_builtin_keeps_file_delivery`. These failures were not diagnosed or waived.
 - Workspace Clippy still FAILS on separate engine argument-count and test-module-order lints. The earlier allow-probe also exposed UI debt. R1/R2 do not establish a green workspace or hosted CI. Hosted acceptance remains blocked.
 
+## Remaining-repair verification (2026-09-29)
+
+Supersedes the earlier local-blocker inventory above. User authorized swarm repair of the remaining issues. Commits: `847c7ba` UI fixture isolation, `0b663c2` Claude test HOME isolation, `7349c94` engine lint repairs and shutdown-fixture request attribution, `ba9fd80` heap-backed diff capture buffer, `385b938` UI lint cleanup. No lint suppression or relaxed CI gate was added.
+
+- `cargo fmt --all -- --check`: PASS.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: PASS on final source bytes.
+- `TMPDIR=/var/tmp cargo test --locked --workspace --all-features -- --test-threads=1`: PASS, aggregate 2665 passed / 0 failed / 30 existing ignored across 97 summaries (includes subprocess fixture summaries). This completed before the final three NaN-preserving UI clamp refinements. The final UI bytes were then revalidated with the full UI suite: 1304 passed / 0 failed, plus workspace formatting/Clippy again.
+- Feature-unified diff/terminal integration suite: 36 passed. Original default-worker-stack regression: 10/10 repeated passes. Stack limit unchanged; the 64 KiB buffer now lives on the heap.
+- Shutdown fixture: unrelated local `Go-http-client/1.1` root probes caused false request-count failures. The fixture now counts engine API paths, with a predicate regression. Shutdown test passed 10 consecutive runs; full engine suite also passed.
+- Original intermittent GHES failure remains recorded. The exact test passed 20/20 repeats and the provider suite 3/3 without source changes.
+- Existing ignored live/auth/platform tests remain unverified. The dependency `proc-macro-error2` emits a future-incompatibility notice, not a failing lint.
+- These are LOCAL results. No GitHub Actions run, push, required-context configuration, or hosted failing-PR proof was performed. Hosted acceptance remains blocked.
+
 ## Existing checks to reuse
 
 - `.github/workflows/ui-tests.yml`: `rust-quality`, `session-sync-regressions`, `ui-tests`, `macos-frame-recovery`, conditional `ios-tests`, `linux-browser`.
