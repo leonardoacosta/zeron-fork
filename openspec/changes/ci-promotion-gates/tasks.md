@@ -25,8 +25,8 @@ Consequence: `rust-quality` is a required `ui-promotion` check, so round 0 canno
 
 #### Bounded repair tasks (not executed; each needs its own approval)
 
-- R1: fix `clippy::large_enum_variant` in `crates/doc/src/commands.rs` by boxing `RunRequest` (or an equivalent indirection), re-running the affected crate tests plus `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
-- R2: fix `clippy::too_many_arguments` in `crates/harness/src/opencode/mod.rs::post_prompt` by grouping the 10 parameters, re-running the harness tests plus the workspace clippy gate.
+- R1: fix `clippy::large_enum_variant` in `crates/doc/src/commands.rs` by boxing `RunRequest` (or an equivalent indirection), re-running the affected crate tests plus `cargo clippy --workspace --all-targets --all-features -- -D warnings`. Scoping (read-only, 2026-09-29): `SessionCommandPayload::Run` has construction or match sites in `crates/ui/src/composer.rs`, `crates/mcp/src/tools.rs`, the `doc` crate, and about a dozen `crates/engine/tests/*` files; boxing is serde-transparent, so the wire shape is unchanged, but each construction site needs `Box::new`. Mechanical, moderate size.
+- R2: fix `clippy::too_many_arguments` in `crates/harness/src/opencode/mod.rs::post_prompt` by grouping the 10 parameters, re-running the harness tests plus the workspace clippy gate. Scoping (read-only): `post_prompt` is called at `crates/harness/src/opencode/mod.rs:1637`, `:1731`, and `:1896`, so a small parameter-struct refactor touches one function plus three call sites.
 
 ## Existing checks to reuse
 
