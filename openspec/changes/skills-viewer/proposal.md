@@ -1,6 +1,6 @@
 # Host-scoped skills viewer
 
-Status: proposed; approval pending. This proposal authorizes planning only. Do not begin implementation before approval.
+Status: approved by the user on 2026-09-29 at 22:38:57 UTC. Implementation has not started; prerequisite verification remains required.
 
 ## Why
 
@@ -28,7 +28,7 @@ Users can inspect global skills without an invented project directory, switch to
 
 ## Approval boundary
 
-This change remains pending approval. Implementation depends on verifying the current discovery response shape and identifying the host-aware content-read boundary. Jcode-specific coverage is conditional; failure to verify Jcode does not block viewer delivery for other supported hosts.
+User approval is recorded above. Implementation depends on verifying the current discovery response shape and identifying the host-aware content-read boundary. Jcode-specific coverage is conditional; failure to verify Jcode does not block viewer delivery for other supported hosts.
 
 ## Acceptance evidence
 

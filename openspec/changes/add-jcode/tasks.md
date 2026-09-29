@@ -1,6 +1,6 @@
 # Tasks: Add Jcode ACP
 
-Status: proposed; approval pending. Complete in order. Do not start implementation before approval. Task 1.1 is a blocking verification gate, not an implementation task.
+Status: approved by the user on 2026-09-29. Implementation has not started. Complete in order. Task 1.1 is a blocking verification gate, not an implementation task.
 
 - [ ] 1.1 Verify pinned Jcode ACP contract (blocking gate)
   - **Scope:** Read current Jcode documentation and run a bounded, read-only harmless handshake against `v0.88.146-dev (f92c40053)` in a disposable session. Verify invocation and negotiated ACP version, auth/readiness, catalog/model discovery, new/load session behavior, streaming, cancellation, permission requests/responses, and skill-related capabilities. Do not configure MCP or invoke side-effecting tools.

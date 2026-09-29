@@ -1,6 +1,6 @@
 # Add Jcode as a first-class ACP agent
 
-Status: proposed; approval pending. Implementation must not start until this change is approved and the Jcode verification gate passes.
+Status: approved by the user on 2026-09-29 at 22:38:57 UTC. Implementation has not started. The Jcode verification gate remains required before dependent implementation.
 
 ## Why
 
@@ -24,4 +24,4 @@ Provider retirement, dedicated skill browsing, and Omni integration/metrics are 
 
 ## Approval and sequencing
 
-This proposal is not approval to implement. First complete the read-only ACP capability verification task. Stop and return for design refinement if the installed/pinned Jcode cannot establish the required handshake, authentication, lifecycle, cancellation, and permission semantics. Only then implement the dependent Jcode work. Sibling proposals remain independently owned, with coordination at shared surfaces and no hard dependency.
+User approval covers this scope but does not waive its verification gate. First complete the read-only ACP capability verification task. Stop and return for design refinement if the installed/pinned Jcode cannot establish the required handshake, authentication, lifecycle, cancellation, and permission semantics. Only then implement the dependent Jcode work. Sibling proposals remain independently owned, with coordination at shared surfaces and no hard dependency.

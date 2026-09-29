@@ -2,7 +2,7 @@
 
 ## Status
 
-Pending review and approval. This proposal defines a read-only integration contract. Implementation is blocked until the Omni API and authorization prerequisites below are verified.
+Approved by the user on 2026-09-29 at 22:38:57 UTC. Implementation has not started. This proposal defines a read-only integration contract. Implementation is blocked until the Omni API and authorization prerequisites below are verified.
 
 ## What Changes
 

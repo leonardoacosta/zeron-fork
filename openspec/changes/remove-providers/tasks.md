@@ -1,6 +1,6 @@
 # Tasks: Remove retired providers
 
-Status: approval pending. Do not start implementation tasks until explicit approval. Each task is limited to the retirement scope in proposal.md.
+Status: approved by the user on 2026-09-29. Implementation has not started; prerequisite tasks remain required. Each task is limited to the retirement scope in proposal.md.
 
 - [ ] **T1. Inventory retired-provider lifecycle and test anchors**
   - Depends on: none

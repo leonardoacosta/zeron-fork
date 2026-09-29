@@ -1,6 +1,6 @@
 # Tasks: Omni-backed model metrics
 
-Tasks are dependency ordered. All implementation tasks are blocked until Task 1 records sufficient authorized API evidence and Task 2 translates that evidence into an agreed contract. Keep this change proposal pending review/approval; planning this sequence is not implementation authorization.
+Tasks are dependency ordered. All implementation tasks are blocked until Task 1 records sufficient authorized API evidence and Task 2 translates that evidence into an agreed contract. User approval was recorded on 2026-09-29. Implementation has not started; approval does not waive either evidence gate or authorize credential provisioning, writes, deployment, or spend.
 
 - [ ] 1. Verify Omni read-only API evidence (BLOCKING)
 

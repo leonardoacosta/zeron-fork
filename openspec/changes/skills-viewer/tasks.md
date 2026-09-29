@@ -1,6 +1,6 @@
 # Tasks: host-scoped skills viewer
 
-Status: ordered plan only. Approval pending.
+Status: approved by the user on 2026-09-29. Implementation has not started. Follow the ordered prerequisites.
 
 - [ ] 1. **Confirm implementation boundaries (prerequisite for 2-5).** Revalidate current discovery and RPC response types, harness scope/precedence behavior, host identity and authorization, supported local and selected-host remote content-read boundaries, UI crate layout for desktop/mobile, and regression tests. Inspect the worker-identified anchors in `crates/harness/src/skills.rs` and `crates/engine/tests/rich_composer_delivery.rs`. Record exact mobile UI/test paths before edits. Verify Jcode capability separately; do not block non-Jcode work on it. **Verify:** findings identify exact source/test paths and whether inventory/read APIs can be extended without changing completion. No source edits in this task.
 

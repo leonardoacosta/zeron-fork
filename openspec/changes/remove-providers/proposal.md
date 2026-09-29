@@ -1,6 +1,6 @@
 # Remove retired agent providers
 
-Status: proposed; implementation approval pending.
+Status: approved by the user on 2026-09-29 at 22:38:57 UTC. Implementation has not started.
 
 ## Why
 
@@ -25,7 +25,7 @@ Affected capability: provider-retirement. Expected surfaces include harness iden
 
 ## Out of scope
 
-Adding Jcode as a harness, adding a skill viewer, all MCP work (explicitly skipped), gateway/model metrics, deleting credentials, migrating historical records, and unrelated provider-adapter work. This proposal does not authorize implementation. Existing prerequisite changes and their approval gates remain independent; do not import unrelated roadmap gates into this bounded change.
+Adding Jcode as a harness, adding a skill viewer, all MCP work (explicitly skipped), gateway/model metrics, deleting credentials, migrating historical records, and unrelated provider-adapter work. User approval authorizes this bounded scope subject to its prerequisite tasks. Existing prerequisite changes and their approval gates remain independent; do not import unrelated roadmap gates into this bounded change.
 
 ## Acceptance
 
@@ -38,4 +38,4 @@ Adding Jcode as a harness, adding a skill viewer, all MCP work (explicitly skipp
 
 ## Approval boundary
 
-Approval is pending. Do not implement until this change is explicitly approved. Approval authorizes only this proposal's scope, not the neighboring integrations in the exploration note.
+User approval is recorded above. Existing prerequisite and verification gates remain in force. Approval authorizes only this proposal's scope, not the neighboring integrations in the exploration note.
