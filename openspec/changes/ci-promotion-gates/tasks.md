@@ -1,8 +1,8 @@
 # Exact-commit CI promotion gate plan
 
 **Goal:** Add fail-closed required summaries to the existing UI, Preview, and Windows workflows.
-**Scope:** Workflow implementation changes only `.github/workflows/ui-tests.yml`, `.github/workflows/preview-tests.yml`, `.github/workflows/windows.yml`, plus `openspec/changes/ci-promotion-gates/tests/test_promotion_gate.py`. The round-evidence consistency checker below is a separately bounded local helper in this same change, not a workflow or hosted gate. If retained, it additionally creates `openspec/changes/ci-promotion-gates/verify_round.py`; it is untrusted review support only and never changes promotion authority. No product code or new workflow. No implementation occurred in this planning task.
-**Readiness:** exact implementation proposal, pending named approval; hosted promotion acceptance remains blocked until configured and observed. The snippets and stdlib predicate are executable, but hosted branch-rule setup and a disposable failing-PR proof remain outstanding. An administrator must require all three summary contexts and verify failure blocks merge. Local structural tests are not hosted enforcement.
+**Scope:** Workflow implementation changes only `.github/workflows/ui-tests.yml`, `.github/workflows/preview-tests.yml`, `.github/workflows/windows.yml`, plus `openspec/changes/ci-promotion-gates/tests/test_promotion_gate.py`. A read-only evidence record from the hosted API check was added alongside as `tests/main-protection-api-evidence.md`; it changes no behavior and no authority. The round-evidence consistency checker below is a separately bounded local helper in this same change, not a workflow or hosted gate. If retained, it additionally creates `openspec/changes/ci-promotion-gates/verify_round.py`; it is untrusted review support only and never changes promotion authority. It was NOT retained. No product code or new workflow.
+**Readiness:** implemented locally at commit `1631379` (three workflow summaries plus `tests/test_promotion_gate.py`); red/green, structural test, and actionlint evidence are recorded below. Hosted promotion acceptance remains blocked: the active `Protect main` ruleset has no required status-check contexts and this account has pull-only access to `zeronsh/zeron`. The pre-implementation baseline also failed `rust-quality` on two pre-existing product lints, recorded as bounded repair tasks R1/R2 below. Local structural tests are not hosted enforcement.
 
 ## Pre-implementation baseline check
 Run the required existing commands before changing workflow files:
@@ -11,6 +11,22 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 ```
 Record exact HEAD/tree and output. If they fail, classify missing system toolchain/dependency versus source defect and create a bounded repair task in this same change before promotion. Never lower lint severity or claim another agent's uncommitted repair is the tested commit. Concurrent quality work may change baseline; re-read current workflow and run checks on the actual integrated revision. This step does not authorize broad formatting unrelated user edits.
+
+### Recorded baseline result (2026-09-29, HEAD 7bcaf6a, clean tree)
+
+- `cargo fmt --all -- --check` -> PASS (exit 0, no output).
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` -> FAIL (exit 101), two pre-existing source lints:
+  - `crates/doc/src/commands.rs:39` `clippy::large_enum_variant` on `SessionCommandPayload`.
+  - `crates/harness/src/opencode/mod.rs:2310` `clippy::too_many_arguments` on `async fn post_prompt` (10/7).
+
+Classification: source defect in product code, not a missing dependency. Both constructs are byte-identical in `origin/main`, so neither was introduced by this branch. Rust toolchain here is system 1.98.1 stable (clippy 0.1.98); the repo pins `channel = "stable"` and no `rustup` is installed locally, so version-dependent lint drift is possible but unproven.
+
+Consequence: `rust-quality` is a required `ui-promotion` check, so round 0 cannot promote until these two lints are repaired. The repairs edit product code (DTO boxing, signature refactor), which is outside this change's "no product code" boundary, so they are recorded below as bounded repair tasks and were NOT executed here.
+
+#### Bounded repair tasks (not executed; each needs its own approval)
+
+- R1: fix `clippy::large_enum_variant` in `crates/doc/src/commands.rs` by boxing `RunRequest` (or an equivalent indirection), re-running the affected crate tests plus `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
+- R2: fix `clippy::too_many_arguments` in `crates/harness/src/opencode/mod.rs::post_prompt` by grouping the 10 parameters, re-running the harness tests plus the workspace clippy gate.
 
 ## Existing checks to reuse
 
@@ -208,11 +224,11 @@ Hosted acceptance is separate: an administrator requires the three `ui-promotion
 - C04: Given native platform/auth credentials are unavailable, record blocked evidence and hold the affected acceptance, without disabling a job to manufacture green.
 
 ## CI phase after every implementation iteration
-- [ ] Run the test red before workflow changes and green after; record commands and results.
-- [ ] Confirm all needed job IDs, matrix behavior, unconditional PR runs, and no degraded test steps.
-- [ ] Run actionlint and structural tests for the three workflows; independently note whether the optional `verify_round.py` was retained and, only if retained, run its self-test.
-- [ ] Record hosted branch-rule and failing-PR evidence separately. Without it, hosted enforcement remains blocked.
-- [ ] Commit only the three workflows, `test_promotion_gate.py`, and (if retained) `verify_round.py` after implementation approval. Do not include unrelated files or hosted configuration.
+- [x] Run the test red before workflow changes and green after; record commands and results. RED at HEAD 7bcaf6a: `python3 openspec/changes/ci-promotion-gates/tests/test_promotion_gate.py` exited 1, three errors (missing `ui-promotion`, `preview-promotion`, `windows-promotion`). GREEN after the edits: same command exited 0, `Ran 1 test ... OK`.
+- [x] Confirm all needed job IDs, matrix behavior, unconditional PR runs, and no degraded test steps. Verified independently: `needs` sets equal the required sets exactly (ui: rust-quality, session-sync-regressions, ui-tests, macos-frame-recovery, ios-tests, linux-browser; preview: networking, coordinator; windows: tests); `ios-tests` runs unconditionally and keeps `needs: changes`; `needs.networking` covers the whole matrix; Windows `native-gui` is never a dependency; no existing test step changed.
+- [x] Run actionlint and structural tests for the three workflows; independently note whether the optional `verify_round.py` was retained and, only if retained, run its self-test. `actionlint v1.7.12` exited 0 on all three workflows; `python3 .../test_promotion_gate.py` exited 0. `verify_round.py` was NOT retained, so its self-test was not run.
+- [ ] Record hosted branch-rule and failing-PR evidence separately. Without it, hosted enforcement remains BLOCKED. Read-only API evidence (2026-09-29, `gh` as `leonardoacosta`) is in `tests/main-protection-api-evidence.md`: `main` is protected and ruleset `20150191` "Protect main" is active, but its rules are only `deletion`, `non_fast_forward`, `pull_request`, so NO required status-check contexts are configured, and this account has `pull`-only permission (`admin: false, push: false`) on `zeronsh/zeron`, with no writable fork remote. Required-context configuration and a failing-PR observation therefore cannot be produced here.
+- [x] Commit only the three workflows, `test_promotion_gate.py`, and (if retained) `verify_round.py` after implementation approval. Do not include unrelated files or hosted configuration. Committed as `1631379` with exactly `.github/workflows/{ui-tests,preview-tests,windows}.yml` and `openspec/changes/ci-promotion-gates/tests/test_promotion_gate.py`; no `verify_round.py`, no hosted configuration, no unrelated file.
 
 ## Rollback
 Revert the three workflow changes. Do not relax branch protection automatically. A missing required context should block merging until an administrator deliberately revises policy.
@@ -225,7 +241,7 @@ After applying the edits, run `actionlint -shellcheck= -pyflakes= .github/workfl
 
 This checker is optional review tooling, separate from the three required workflow summaries and `test_promotion_gate.py`. During named implementation approval, explicitly retain or defer it. If deferred, skip this entire section and do not create its file; workflow summary implementation/acceptance remains independently scoped. If retained, include its file in the approved file list and use the steps below only after the workflow work. It cannot satisfy or replace hosted branch-rule/failing-PR acceptance.
 
-- [ ] Create exact code below and run `python3 openspec/changes/ci-promotion-gates/verify_round.py --self-test`; require12 tests. Every failed required test blocks; evidence cannot change a manifest's test unit into research. Ignored tests must be predeclared non-required with separate coverage references; no waiver of required behavior.
+- [ ] N/A (helper not retained): Create exact code below and run `python3 openspec/changes/ci-promotion-gates/verify_round.py --self-test`; require12 tests. Every failed required test blocks; evidence cannot change a manifest's test unit into research. Ignored tests must be predeclared non-required with separate coverage references; no waiver of required behavior.
 ```python
 #!/usr/bin/env python3
 """Untrusted consistency checker for an integrated-round evidence manifest.
@@ -578,7 +594,7 @@ if __name__ == "__main__":
     else:
         raise SystemExit(main(sys.argv))
 ```
-- [ ] Do not invoke, create or commit `verify_round.py` unless its bounded-helper scope is retained in the approved implementation. This is local review support, not hosted enforcement or promotion authorization.
+- [x] Do not invoke, create or commit `verify_round.py` unless its bounded-helper scope is retained in the approved implementation. This is local review support, not hosted enforcement or promotion authorization. Not retained: `verify_round.py` was neither created nor committed.
 - [ ] Populate record only from observed CI run/job and artifact outputs. Independent reviewer opens native run URLs, verifies tested merge/head/base revision, required jobs, real selected counts and evidence artifacts. Self-reported JSON can be forged; this checker intentionally cannot prove provenance and must never be sole promotion input.
 - [ ] Run `python3 openspec/changes/ci-promotion-gates/verify_round.py MANIFEST.json EVIDENCE.json`. Nonzero blocks review. Zero does not authorize merge, execution or delivery; current required hosted checks and independent product acceptance still gate promotion.
 - [ ] A research unit may finish a bounded research deliverable with explicit unknown findings, but no dependent implementation may promote while its required capability remains unknown/blocked. Do not use research success as provider support.
