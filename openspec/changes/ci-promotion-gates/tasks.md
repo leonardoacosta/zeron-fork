@@ -15,18 +15,22 @@ Record exact HEAD/tree and output. If they fail, classify missing system toolcha
 ### Recorded baseline result (2026-09-29, HEAD 7bcaf6a, clean tree)
 
 - `cargo fmt --all -- --check` -> PASS (exit 0, no output).
-- `cargo clippy --workspace --all-targets --all-features -- -D warnings` -> FAIL (exit 101), two pre-existing source lints:
-  - `crates/doc/src/commands.rs:39` `clippy::large_enum_variant` on `SessionCommandPayload`.
-  - `crates/harness/src/opencode/mod.rs:2310` `clippy::too_many_arguments` on `async fn post_prompt` (10/7).
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` -> FAIL (exit 101). The first two errors reported are `clippy::large_enum_variant` at `crates/doc/src/commands.rs:39` and `clippy::too_many_arguments` at `crates/harness/src/opencode/mod.rs:2310`.
+- Re-ran with those two lints allowed (`-A clippy::large_enum_variant -A clippy::too_many_arguments`): still FAIL (exit 101) with **125 error lines across 35 distinct lint kinds**. `zeron-ui` lib 86, `zeron-ui` lib test 116, `zeron-engine` lib test 3, `zeron-engine` test `local_first` 1. Leading kinds: `collapsible_if` 38, `type_complexity` 17, `items_after_test_module` 10, `unnecessary_to_owned`/clone-to-slice 7, plus unused imports, dead code, and needless borrows.
 
-Classification: source defect in product code, not a missing dependency. Both constructs are byte-identical in `origin/main`, so neither was introduced by this branch. Rust toolchain here is system 1.98.1 stable (clippy 0.1.98); the repo pins `channel = "stable"` and no `rustup` is installed locally, so version-dependent lint drift is possible but unproven.
+Classification: source defect, not a missing dependency. The local toolchain is system 1.98.1 stable (clippy 0.1.98); the repo pins `channel = "stable"` and no `rustup` is installed here.
 
-Consequence: `rust-quality` is a required `ui-promotion` check, so round 0 cannot promote until these two lints are repaired. The repairs edit product code (DTO boxing, signature refactor), which is outside this change's "no product code" boundary, so they are recorded below as bounded repair tasks and were NOT executed here.
+Decisive correction (verified against the hosted API, read-only): `rust-quality` **does not exist in `origin/main`'s `.github/workflows/ui-tests.yml`**. It was added by local-only commit `1427da6` ("ci: enforce Rust formatting and clippy"), which is not an ancestor of `origin/main`. Upstream `ui-tests` runs on `main` contain no `rust-quality` job at all (e.g. runs `36520572863`, `36631347022`: `changes`, `session-sync-regressions`, `ui-tests`, `macos-frame-recovery`, `ios-tests`, `linux-browser`). So the failing check is a fork-local addition, and there is no upstream baseline to align to.
+
+Consequence: `ui-promotion` cannot go green on this fork until the fork either (a) cleans up the 125 clippy errors, or (b) deliberately re-scopes or reverts the fork-local clippy enforcement by explicit decision. Because the branch ruleset does not yet require these contexts, the newly wired gates block nothing today; they are inert until an administrator requires them. This change wires the gate and does not resolve the fork-local lint debt.
 
 #### Bounded repair tasks (not executed; each needs its own approval)
 
-- R1: fix `clippy::large_enum_variant` in `crates/doc/src/commands.rs` by boxing `RunRequest` (or an equivalent indirection), re-running the affected crate tests plus `cargo clippy --workspace --all-targets --all-features -- -D warnings`. Scoping (read-only, 2026-09-29): `SessionCommandPayload::Run` has construction or match sites in `crates/ui/src/composer.rs`, `crates/mcp/src/tools.rs`, the `doc` crate, and about a dozen `crates/engine/tests/*` files; boxing is serde-transparent, so the wire shape is unchanged, but each construction site needs `Box::new`. Mechanical, moderate size.
-- R2: fix `clippy::too_many_arguments` in `crates/harness/src/opencode/mod.rs::post_prompt` by grouping the 10 parameters, re-running the harness tests plus the workspace clippy gate. Scoping (read-only): `post_prompt` is called at `crates/harness/src/opencode/mod.rs:1637`, `:1731`, and `:1896`, so a small parameter-struct refactor touches one function plus three call sites.
+- R1: workspace clippy cleanup for `cargo clippy --workspace --all-targets --all-features -- -D warnings`. Scope is larger than the first two errors suggested: 125 errors over 35 lint kinds, concentrated in `crates/ui` (lib 86, lib test 116) with a few in `crates/engine` tests, plus the two originals:
+  - `clippy::large_enum_variant` in `crates/doc/src/commands.rs:39`; boxing `RunRequest` is serde-transparent but every construction site needs `Box::new` (`crates/ui/src/composer.rs`, `crates/mcp/src/tools.rs`, the `doc` crate, and about a dozen `crates/engine/tests/*` files).
+  - `clippy::too_many_arguments` in `crates/harness/src/opencode/mod.rs::post_prompt`; one function plus its three call sites (`:1637`, `:1731`, `:1896`).
+  - The remaining ~123 are mechanical test-and-UI lints (collapsible `if`, complex types, items after test modules, needless clones and borrows, unused imports, dead code).
+- R2 (alternative, not a cleanup): decide the fate of the fork-local `1427da6` lint enforcement. Options are a full cleanup (R1), scoping the job's clippy invocation to crates that pass, or reverting the job. Any option that suppresses lints rather than fixing them contradicts this change's "never lower lint severity" rule and needs to be recorded as an explicit fork policy decision, not a promotion workaround.
 
 ## Existing checks to reuse
 
