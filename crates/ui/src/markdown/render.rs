@@ -23,7 +23,7 @@ use zeron_syntax::{HighlightKind, HighlightSpan, HighlightedDocument};
 
 use crate::theme::Theme;
 
-use super::parser::{Block, BlockTree, InlineRun, TableAlign};
+use super::parser::{Block, BlockTree, InlineRun, TableAlign, TaskMarker};
 use super::veil::{RowVeil, apply_veil, slice_spans};
 
 /// Gap between markdown blocks inside one message (zeron mdBlockGap).
@@ -103,27 +103,34 @@ pub struct RenderOptions {
 
 #[derive(Clone)]
 pub struct TaskUi {
-    pub toggle: Option<Rc<dyn Fn(&super::parser::TaskMarker, &mut Window, &mut gpui::App)>>,
+    pub toggle: Option<Rc<TaskToggle>>,
 }
+
+type TaskToggle = dyn Fn(&TaskMarker, &mut Window, &mut gpui::App);
 
 #[derive(Clone)]
 pub struct MediaUi {
-    pub diagram: Option<Rc<dyn Fn(&str, SharedString, &Theme) -> DiagramUi>>,
-    pub image: Rc<dyn Fn(&super::parser::InlineImage, SharedString, &Theme) -> AnyElement>,
+    pub diagram: Option<Rc<DiagramRenderer>>,
+    pub image: Rc<ImageRenderer>,
 }
+
+type DiagramRenderer = dyn Fn(&str, SharedString, &Theme) -> DiagramUi;
+type ImageRenderer = dyn Fn(&super::parser::InlineImage, SharedString, &Theme) -> AnyElement;
 
 pub struct DiagramUi {
     pub body: AnyElement,
     pub show_source: bool,
-    pub toggle_source: Rc<dyn Fn(&mut Window, &mut gpui::App)>,
+    pub toggle_source: Rc<WindowAppCallback>,
 }
+
+type WindowAppCallback = dyn Fn(&mut Window, &mut gpui::App);
 
 /// Copy-button wiring for one row's code blocks: the handler writes the code
 /// to the clipboard and flips a transient per-row "Copied" state owned by the
 /// transcript entity; `copied_ix` is the block currently showing feedback.
 #[derive(Clone)]
 pub struct CopyUi {
-    pub handler: Rc<dyn Fn(usize, SharedString, &mut Window, &mut gpui::App)>,
+    pub handler: Rc<CopyHandler>,
     pub copied_ix: Option<usize>,
 }
 
@@ -132,8 +139,11 @@ pub use super::links::{LinkAction, LinkActivation, LinkOutcome, LinkTarget};
 #[derive(Clone)]
 pub struct LinkUi {
     pub source_session: Option<String>,
-    pub handler: Rc<dyn Fn(&LinkActivation, &mut Window, &mut gpui::App) -> LinkOutcome>,
+    pub handler: Rc<LinkHandler>,
 }
+
+type CopyHandler = dyn Fn(usize, SharedString, &mut Window, &mut gpui::App);
+type LinkHandler = dyn Fn(&LinkActivation, &mut Window, &mut gpui::App) -> LinkOutcome;
 
 pub fn activate_link(
     target: LinkTarget,
@@ -173,7 +183,7 @@ pub struct CodeUi {
     pub fit_content: bool,
     pub scroll: gpui::ScrollHandle,
     pub scrollbar: Option<CodeScrollbarUi>,
-    pub toggle_fit: Rc<dyn Fn(&mut Window, &mut gpui::App)>,
+    pub toggle_fit: Rc<WindowAppCallback>,
     pub viewport_hover: HoverHandler,
     pub drag_move: PointerHandler,
 }
@@ -902,7 +912,7 @@ fn render_table(
 }
 
 /// Flattened inline runs: one string + gpui `TextRun`s + clickable link ranges
-/// + inline-code ranges (their rounded washes are painted by a canvas UNDER
+/// and inline-code ranges (their rounded washes are painted by a canvas UNDER
 /// the text — `TextRun::background_color` can only paint square boxes).
 /// `text` is a `SharedString` so cached reuse across frames is an Arc clone.
 #[derive(Clone)]
@@ -1639,51 +1649,51 @@ fn text_element(
     opts: &RenderOptions,
     theme: &Theme,
 ) -> AnyElement {
-    if let Some(media) = &opts.media {
-        if runs.iter().any(|run| run.style.image.is_some()) {
-            let mut elements = Vec::new();
-            let mut start = 0;
-            for (index, run) in runs.iter().enumerate() {
-                if let Some(image) = &run.style.image {
-                    if start < index {
-                        elements.push(text_element(
-                            &runs[start..index],
-                            size,
-                            line_height,
-                            bold_default,
-                            top_ix,
-                            ix.wrapping_mul(4099).wrapping_add(start + 1000),
-                            opts,
-                            theme,
-                        ));
-                    }
-                    elements.push((media.image)(
-                        image,
-                        format!("{}-image-{ix}-{index}", opts.row_key).into(),
+    if let Some(media) = &opts.media
+        && runs.iter().any(|run| run.style.image.is_some())
+    {
+        let mut elements = Vec::new();
+        let mut start = 0;
+        for (index, run) in runs.iter().enumerate() {
+            if let Some(image) = &run.style.image {
+                if start < index {
+                    elements.push(text_element(
+                        &runs[start..index],
+                        size,
+                        line_height,
+                        bold_default,
+                        top_ix,
+                        ix.wrapping_mul(4099).wrapping_add(start + 1000),
+                        opts,
                         theme,
                     ));
-                    start = index + 1;
                 }
-            }
-            if start < runs.len() {
-                elements.push(text_element(
-                    &runs[start..],
-                    size,
-                    line_height,
-                    bold_default,
-                    top_ix,
-                    ix.wrapping_mul(4099).wrapping_add(start + 1000),
-                    opts,
+                elements.push((media.image)(
+                    image,
+                    format!("{}-image-{ix}-{index}", opts.row_key).into(),
                     theme,
                 ));
+                start = index + 1;
             }
-            return div()
-                .flex()
-                .flex_col()
-                .gap(px(8.0))
-                .children(elements)
-                .into_any_element();
         }
+        if start < runs.len() {
+            elements.push(text_element(
+                &runs[start..],
+                size,
+                line_height,
+                bold_default,
+                top_ix,
+                ix.wrapping_mul(4099).wrapping_add(start + 1000),
+                opts,
+                theme,
+            ));
+        }
+        return div()
+            .flex()
+            .flex_col()
+            .gap(px(8.0))
+            .children(elements)
+            .into_any_element();
     }
     if let Some(lines) = opts
         .workspace_root
@@ -1851,43 +1861,43 @@ fn render_code_block(
     theme: &Theme,
     highlight: CodeHighlight,
 ) -> AnyElement {
-    if language.is_some_and(|l| l.eq_ignore_ascii_case("mermaid")) {
-        if let Some(handler) = opts.media.as_ref().and_then(|media| media.diagram.as_ref()) {
-            let frame_id: SharedString = format!("{}-mermaid-{ix}", opts.row_key).into();
-            let diagram = handler(code, frame_id.clone(), theme);
-            let toggle = diagram.toggle_source.clone();
-            let toggle_action = code_icon_action(
-                format!("{frame_id}-source-toggle").into(),
-                if diagram.show_source {
-                    "Show diagram"
-                } else {
-                    "Show source"
-                },
-                if diagram.show_source {
-                    crate::icons::EYE
-                } else {
-                    crate::icons::FILE_CODE
-                },
-                Rc::new(move |window, cx| toggle(window, cx)),
-                theme,
-            );
+    if language.is_some_and(|l| l.eq_ignore_ascii_case("mermaid"))
+        && let Some(handler) = opts.media.as_ref().and_then(|media| media.diagram.as_ref())
+    {
+        let frame_id: SharedString = format!("{}-mermaid-{ix}", opts.row_key).into();
+        let diagram = handler(code, frame_id.clone(), theme);
+        let toggle = diagram.toggle_source.clone();
+        let toggle_action = code_icon_action(
+            format!("{frame_id}-source-toggle").into(),
             if diagram.show_source {
-                return render_code_block_source_with_actions(
-                    language,
-                    code,
-                    top_ix,
-                    ix,
-                    opts,
-                    theme,
-                    highlight,
-                    vec![toggle_action],
-                );
-            }
-            let mut actions = vec![toggle_action];
-            actions.extend(code_copy_button(code, ix, opts, theme));
-            return code_block_frame(frame_id, language, actions, diagram.body, theme)
-                .into_any_element();
+                "Show diagram"
+            } else {
+                "Show source"
+            },
+            if diagram.show_source {
+                crate::icons::EYE
+            } else {
+                crate::icons::FILE_CODE
+            },
+            Rc::new(move |window, cx| toggle(window, cx)),
+            theme,
+        );
+        if diagram.show_source {
+            return render_code_block_source_with_actions(
+                language,
+                code,
+                top_ix,
+                ix,
+                opts,
+                theme,
+                highlight,
+                vec![toggle_action],
+            );
         }
+        let mut actions = vec![toggle_action];
+        actions.extend(code_copy_button(code, ix, opts, theme));
+        return code_block_frame(frame_id, language, actions, diagram.body, theme)
+            .into_any_element();
     }
     render_code_block_source(language, code, top_ix, ix, opts, theme, highlight)
 }
@@ -1896,7 +1906,7 @@ fn code_icon_action(
     id: SharedString,
     label: &'static str,
     icon_path: &'static str,
-    handler: Rc<dyn Fn(&mut Window, &mut gpui::App)>,
+    handler: Rc<WindowAppCallback>,
     theme: &Theme,
 ) -> AnyElement {
     let fade_key = id.to_string();
@@ -2244,7 +2254,7 @@ fn render_code_block_source_with_actions(
     };
 
     let scrollbar = (!fit_content)
-        .then(|| code_ui.as_ref())
+        .then_some(code_ui.as_ref())
         .flatten()
         .and_then(|ui| {
             let bar = ui.scrollbar.as_ref()?;
@@ -2382,6 +2392,12 @@ pub fn runs_for_syntax_line_with_plain(
     }
     runs.retain(|run| run.len > 0);
     runs
+}
+
+/// Native fixture access to actual shaped link ranges; absent in shipped builds.
+#[cfg(feature = "browser-fixture")]
+pub fn fixture_link(target: &str) -> Option<(gpui::Point<gpui::Pixels>, gpui::FocusHandle)> {
+    super::link_interaction::fixture_link(target)
 }
 
 #[cfg(test)]
@@ -3030,10 +3046,4 @@ mod tests {
         );
         assert!(cache.code.is_empty());
     }
-}
-
-/// Native fixture access to actual shaped link ranges; absent in shipped builds.
-#[cfg(feature = "browser-fixture")]
-pub fn fixture_link(target: &str) -> Option<(gpui::Point<gpui::Pixels>, gpui::FocusHandle)> {
-    super::link_interaction::fixture_link(target)
 }

@@ -182,16 +182,16 @@ fn comment_accent_bar(color: gpui::Hsla) -> gpui::Div {
     div().w(px(ACCENT_BAR_WIDTH)).h_full().flex_none().bg(color)
 }
 
+type DraftAction<T> = fn(&mut T, &mut Context<T>);
+
 /// Fixed height, so an open draft never fights the fold tween.
 pub(crate) fn render_comment_draft<T: 'static>(
-    path: &str,
-    line: u32,
+    (path, line): (&str, u32),
     input: Entity<ComposerInput>,
     editing: bool,
     theme: &Theme,
     cx: &Context<T>,
-    cancel: fn(&mut T, &mut Context<T>),
-    commit: fn(&mut T, &mut Context<T>),
+    (cancel, commit): (DraftAction<T>, DraftAction<T>),
     column: Option<CommentContentColumn>,
 ) -> AnyElement {
     div()

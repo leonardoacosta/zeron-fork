@@ -44,7 +44,7 @@ pub fn record_key(key: &str, ctrl: bool, alt: bool, shift: bool, cmd: bool) -> R
 #[derive(Debug, Clone)]
 pub enum ShortcutsEvent {
     /// The keymap changed — persist + re-apply.
-    KeymapChanged(KeymapConfig),
+    KeymapChanged(Box<KeymapConfig>),
     /// The Escape fallback changed — persist it locally.
     EscapeStopsActiveAgentChanged(bool),
     /// The composer send behavior changed — persist + re-apply.
@@ -93,9 +93,11 @@ impl ShortcutsPage {
         keymap: KeymapConfig,
         escape_stops_active_agent: bool,
         composer_send_behavior: ComposerSendBehavior,
-        appshots_enabled: bool,
-        appshot_sound_enabled: bool,
-        appshot_destination: AppshotDestination,
+        (appshots_enabled, appshot_sound_enabled, appshot_destination): (
+            bool,
+            bool,
+            AppshotDestination,
+        ),
         cx: &mut Context<Self>,
     ) -> Self {
         cx.on_release(|_, _| crate::appshots::set_recording(false))
@@ -179,7 +181,7 @@ impl ShortcutsPage {
     }
 
     fn commit(&mut self, cx: &mut Context<Self>) {
-        cx.emit(ShortcutsEvent::KeymapChanged(self.keymap.clone()));
+        cx.emit(ShortcutsEvent::KeymapChanged(Box::new(self.keymap.clone())));
         cx.notify();
     }
 
@@ -797,9 +799,7 @@ mod tests {
                 KeymapConfig::default(),
                 false,
                 ComposerSendBehavior::Enter,
-                false,
-                false,
-                AppshotDestination::Automatic,
+                (false, false, AppshotDestination::Automatic),
                 cx,
             );
             page.show_section(false, true);
@@ -852,9 +852,7 @@ mod tests {
                 KeymapConfig::default(),
                 false,
                 ComposerSendBehavior::default(),
-                false,
-                false,
-                AppshotDestination::Automatic,
+                (false, false, AppshotDestination::Automatic),
                 cx,
             );
             page.show_appshots(true);
@@ -957,9 +955,7 @@ mod tests {
                 KeymapConfig::default(),
                 false,
                 ComposerSendBehavior::default(),
-                false,
-                true,
-                AppshotDestination::Automatic,
+                (false, true, AppshotDestination::Automatic),
                 cx,
             )
         });

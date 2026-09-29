@@ -2178,10 +2178,10 @@ impl Pickers {
             self.defaults.project = state.selected_space.clone();
             self.defaults.no_project = state.no_project;
         }
-        if let Some(dir) = &self.data_dir {
-            if let Err(err) = self.defaults.save(dir) {
-                tracing::warn!(error = %err, "composer-defaults save failed");
-            }
+        if let Some(dir) = &self.data_dir
+            && let Err(err) = self.defaults.save(dir)
+        {
+            tracing::warn!(error = %err, "composer-defaults save failed");
         }
     }
 
@@ -3025,9 +3025,7 @@ impl Pickers {
             // Sessions never move: read-only checkout-kind + ref labels,
             // LEFT-aligned, only when the session's project has git. The
             // target (project @ device) lives in the titlebar now.
-            let Some(space) = space.as_ref().filter(|s| s.git_detected) else {
-                return None;
-            };
+            let space = space.as_ref().filter(|s| s.git_detected)?;
             let is_worktree = chat.cwd.as_deref().is_some_and(|cwd| cwd != space.path);
             let (icon_path, label) = if is_worktree {
                 (crate::icons::FOLDER_WITH_FILES, "Worktree")
@@ -5055,6 +5053,32 @@ impl Render for Pickers {
     }
 }
 
+/// Catalog for the isolated native screenshot fixture; never used by the app.
+#[cfg(feature = "project-palette-fixture")]
+impl Pickers {
+    pub(crate) fn fixture_model_catalog(&mut self, cx: &mut Context<Self>) {
+        if matches!(self.models.get(&HarnessId::Codex), Some(Loadable::Ready(_))) {
+            return;
+        }
+        self.config.harness = Some(HarnessId::Codex);
+        self.config.model = Some("gpt-5.4".into());
+        self.harnesses = Loadable::Ready(serde_json::from_value(serde_json::json!([
+            {"id":"codex","name":"Codex","supportsSteering":true,"steeringMode":"step-boundary","reasoningLevels":[]}
+        ])).unwrap());
+        self.models.insert(HarnessId::Codex, Loadable::Ready(serde_json::from_value(serde_json::json!([
+            {"id":"gpt-5.4","label":"GPT-5.4","description":"For complex coding and reasoning", "reasoningLevels":["low","medium","high","xhigh"], "options":[
+                {"id":"context-window","label":"Context window","defaultChoice":"standard","choices":[{"id":"standard","label":"Standard"},{"id":"1m","label":"1M tokens"}]},
+                {"id":"service-tier","label":"Service tier","defaultChoice":"auto","choices":[{"id":"auto","label":"Standard"},{"id":"fast","label":"Fast"}]}
+            ]},
+            {"id":"gpt-5.3-codex","label":"GPT-5.3 Codex","description":"Optimized for agentic coding"},
+            {"id":"gpt-5.2","label":"GPT-5.2","description":"General purpose reasoning"},
+            {"id":"gpt-5.1-codex-mini","label":"GPT-5.1 Codex Mini","description":"Fast, efficient coding"}
+        ])).unwrap()));
+        self.catalog_rev += 1;
+        cx.notify();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -6934,31 +6958,5 @@ mod tests {
         ];
         let offered = offered_harnesses_impl(&catalog, false);
         assert!(offered.is_empty());
-    }
-}
-
-/// Catalog for the isolated native screenshot fixture; never used by the app.
-#[cfg(feature = "project-palette-fixture")]
-impl Pickers {
-    pub(crate) fn fixture_model_catalog(&mut self, cx: &mut Context<Self>) {
-        if matches!(self.models.get(&HarnessId::Codex), Some(Loadable::Ready(_))) {
-            return;
-        }
-        self.config.harness = Some(HarnessId::Codex);
-        self.config.model = Some("gpt-5.4".into());
-        self.harnesses = Loadable::Ready(serde_json::from_value(serde_json::json!([
-            {"id":"codex","name":"Codex","supportsSteering":true,"steeringMode":"step-boundary","reasoningLevels":[]}
-        ])).unwrap());
-        self.models.insert(HarnessId::Codex, Loadable::Ready(serde_json::from_value(serde_json::json!([
-            {"id":"gpt-5.4","label":"GPT-5.4","description":"For complex coding and reasoning", "reasoningLevels":["low","medium","high","xhigh"], "options":[
-                {"id":"context-window","label":"Context window","defaultChoice":"standard","choices":[{"id":"standard","label":"Standard"},{"id":"1m","label":"1M tokens"}]},
-                {"id":"service-tier","label":"Service tier","defaultChoice":"auto","choices":[{"id":"auto","label":"Standard"},{"id":"fast","label":"Fast"}]}
-            ]},
-            {"id":"gpt-5.3-codex","label":"GPT-5.3 Codex","description":"Optimized for agentic coding"},
-            {"id":"gpt-5.2","label":"GPT-5.2","description":"General purpose reasoning"},
-            {"id":"gpt-5.1-codex-mini","label":"GPT-5.1 Codex Mini","description":"Fast, efficient coding"}
-        ])).unwrap()));
-        self.catalog_rev += 1;
-        cx.notify();
     }
 }

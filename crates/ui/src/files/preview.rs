@@ -2398,10 +2398,10 @@ impl FilesSurface {
                         };
                         if let Some(document) = this.preview.documents.get_mut(&path) {
                             document.show_markdown = !document.show_markdown;
-                            if !document.show_markdown {
-                                if let Some(view) = &document.markdown {
-                                    view.update(cx, |view, cx| view.suspend(cx));
-                                }
+                            if !document.show_markdown
+                                && let Some(view) = &document.markdown
+                            {
+                                view.update(cx, |view, cx| view.suspend(cx));
                             }
                         }
                         if this
@@ -3190,9 +3190,12 @@ fn editor_comment_overlay_top(
 fn editor_comment_overlay_horizontal(layout: &EditorOverlayLayout) -> (f32, f32) {
     let anchored_left =
         (layout.gutter_width - EDITOR_COMMENT_CARD_MARGIN).max(EDITOR_COMMENT_CARD_MARGIN);
-    let anchored_width = (layout.viewport_width - anchored_left - EDITOR_COMMENT_CARD_MARGIN)
-        .min(EDITOR_COMMENT_CARD_WIDTH)
-        .max(0.0);
+    let available_width = layout.viewport_width - anchored_left - EDITOR_COMMENT_CARD_MARGIN;
+    let anchored_width = if available_width.is_nan() {
+        EDITOR_COMMENT_CARD_WIDTH
+    } else {
+        available_width.clamp(0.0, EDITOR_COMMENT_CARD_WIDTH)
+    };
     if anchored_width >= EDITOR_COMMENT_CARD_MIN_ANCHORED_WIDTH {
         (anchored_left, anchored_width)
     } else {
@@ -3748,10 +3751,7 @@ mod markdown_buffer_tests {
                 state,
                 "chat".into(),
                 path.into(),
-                false,
-                1000,
-                13.0,
-                false,
+                (false, 1000, 13.0, false),
                 false,
                 cx,
             )
@@ -3887,10 +3887,7 @@ mod markdown_buffer_tests {
                 state,
                 "chat".into(),
                 path.into(),
-                false,
-                1000,
-                13.0,
-                false,
+                (false, 1000, 13.0, false),
                 false,
                 cx,
             )
@@ -3978,10 +3975,7 @@ mod markdown_buffer_tests {
                 state,
                 "chat".into(),
                 path.into(),
-                false,
-                1000,
-                13.0,
-                false,
+                (false, 1000, 13.0, false),
                 false,
                 cx,
             )
@@ -4036,10 +4030,7 @@ mod markdown_buffer_tests {
                 state,
                 "chat".into(),
                 path.into(),
-                false,
-                1000,
-                13.0,
-                false,
+                (false, 1000, 13.0, false),
                 false,
                 cx,
             )
@@ -4158,10 +4149,7 @@ mod markdown_buffer_tests {
                             let mut owner = FilesSurface::new(
                                 state,
                                 "chat".into(),
-                                false,
-                                1000,
-                                13.0,
-                                false,
+                                (false, 1000, 13.0, false),
                                 false,
                                 cx,
                             );
@@ -4408,7 +4396,7 @@ mod markdown_buffer_tests {
         });
         let window = cx.add_window(|_, cx| {
             let state = cx.new(|_| crate::state::AppState::new());
-            FilesSurface::new(state, "chat".into(), false, 1000, 13.0, false, false, cx)
+            FilesSurface::new(state, "chat".into(), (false, 1000, 13.0, false), false, cx)
         });
         window
             .update(cx, |surface, window, cx| {
@@ -4514,7 +4502,7 @@ mod markdown_buffer_tests {
         });
         let window = cx.add_window(|_, cx| {
             let state = cx.new(|_| crate::state::AppState::new());
-            FilesSurface::new(state, "chat".into(), false, 1000, 13.0, false, false, cx)
+            FilesSurface::new(state, "chat".into(), (false, 1000, 13.0, false), false, cx)
         });
         window
             .update(cx, |surface, window, cx| {
@@ -4597,7 +4585,7 @@ mod markdown_buffer_tests {
         });
         let window = cx.add_window(|_, cx| {
             let state = cx.new(|_| crate::state::AppState::new());
-            FilesSurface::new(state, "owner".into(), false, 1000, 13.0, false, false, cx)
+            FilesSurface::new(state, "owner".into(), (false, 1000, 13.0, false), false, cx)
         });
         let (owner, preview) = window
             .update(cx, |surface, _, cx| {
@@ -4733,7 +4721,7 @@ mod markdown_buffer_tests {
         });
         let window = cx.add_window(|_, cx| {
             let state = cx.new(|_| crate::state::AppState::new());
-            FilesSurface::new(state, "chat".into(), false, 1000, 13.0, false, false, cx)
+            FilesSurface::new(state, "chat".into(), (false, 1000, 13.0, false), false, cx)
         });
         let preview = window
             .update(cx, |surface, window, cx| {

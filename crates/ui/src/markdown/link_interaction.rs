@@ -31,12 +31,16 @@ pub struct LinkRanges {
     pub links: Vec<(Range<usize>, LinkTarget)>,
     pub ui: Option<LinkUi>,
 }
+type MenuState = Rc<RefCell<Option<(usize, Point<Pixels>)>>>;
+#[cfg(test)]
+type TooltipBounds = Rc<Cell<Option<Bounds<Pixels>>>>;
+
 struct Interaction {
     targets: Vec<LinkTarget>,
     focus: Vec<FocusHandle>,
     menu_focus: [FocusHandle; 4],
     menu_focus_pending: Rc<Cell<bool>>,
-    menu: Rc<RefCell<Option<(usize, Point<Pixels>)>>>,
+    menu: MenuState,
     bounds: Bounds<Pixels>,
     epoch: Rc<Cell<u64>>,
     dismissed: Rc<Cell<bool>>,
@@ -53,7 +57,7 @@ impl Element for LinkRanges {
     type RequestLayoutState = ();
     type PrepaintState = (
         Vec<AnyElement>,
-        Rc<RefCell<Option<(usize, Point<Pixels>)>>>,
+        MenuState,
         Rc<Cell<u64>>,
         Rc<Cell<bool>>,
         Rc<Cell<Option<Bounds<Pixels>>>>,
@@ -226,49 +230,47 @@ impl Element for LinkRanges {
                     overlays.push(hit);
                 }
             }
-            if state.menu.borrow().is_none() && !state.dismissed.get() {
-                if let Some(index) = focused {
-                    if let Some(rect) =
-                        range_rects(&self.layout, &self.links[index].0, 0., 0.).first()
-                    {
-                        let card = super::link_destination::destination_card(
-                            &state.targets[index].original,
-                            state.tooltip_bounds.clone(),
-                            window,
-                            cx,
-                        );
-                        let dismissed = state.dismissed.clone();
-                        let epoch = state.epoch.clone();
-                        // This disclosure is not a menu: menu_at consumes every
-                        // outside press, preventing other controls from receiving it.
-                        let mut popup = gpui::deferred(
-                            gpui::anchored()
-                                .position(rect.bottom_left())
-                                .anchor(gpui::Anchor::TopLeft)
-                                .snap_to_window_with_margin(px(8.))
-                                .child(
-                                    div()
-                                        .id("focused-link-destination")
-                                        .occlude()
-                                        .on_mouse_down_out(move |_, window, _| {
-                                            dismissed.set(true);
-                                            epoch.set(epoch.get().wrapping_add(1));
-                                            window.refresh();
-                                        })
-                                        .child(card),
-                                ),
-                        )
-                        .priority(1)
-                        .into_any_element();
-                        popup.prepaint_as_root(
-                            bounds.origin,
-                            window.viewport_size().map(AvailableSpace::Definite),
-                            window,
-                            cx,
-                        );
-                        overlays.push(popup);
-                    }
-                }
+            if state.menu.borrow().is_none()
+                && !state.dismissed.get()
+                && let Some(index) = focused
+                && let Some(rect) = range_rects(&self.layout, &self.links[index].0, 0., 0.).first()
+            {
+                let card = super::link_destination::destination_card(
+                    &state.targets[index].original,
+                    state.tooltip_bounds.clone(),
+                    window,
+                    cx,
+                );
+                let dismissed = state.dismissed.clone();
+                let epoch = state.epoch.clone();
+                // This disclosure is not a menu: menu_at consumes every
+                // outside press, preventing other controls from receiving it.
+                let mut popup = gpui::deferred(
+                    gpui::anchored()
+                        .position(rect.bottom_left())
+                        .anchor(gpui::Anchor::TopLeft)
+                        .snap_to_window_with_margin(px(8.))
+                        .child(
+                            div()
+                                .id("focused-link-destination")
+                                .occlude()
+                                .on_mouse_down_out(move |_, window, _| {
+                                    dismissed.set(true);
+                                    epoch.set(epoch.get().wrapping_add(1));
+                                    window.refresh();
+                                })
+                                .child(card),
+                        ),
+                )
+                .priority(1)
+                .into_any_element();
+                popup.prepaint_as_root(
+                    bounds.origin,
+                    window.viewport_size().map(AvailableSpace::Definite),
+                    window,
+                    cx,
+                );
+                overlays.push(popup);
             }
             if let Some((index, position)) = *state.menu.borrow() {
                 let theme = theme.for_popup();
@@ -543,7 +545,7 @@ mod rendered_tests {
     #[cfg(target_os = "linux")]
     use gpui_platform::headless as test_application;
     thread_local! {
-        pub(super) static TOOLTIP_BOUNDS: RefCell<Option<Rc<Cell<Option<Bounds<Pixels>>>>>> = RefCell::default();
+        pub(super) static TOOLTIP_BOUNDS: RefCell<Option<TooltipBounds>> = RefCell::default();
     }
     fn draw_has_tooltip(window: &mut Window, cx: &mut App) -> bool {
         TOOLTIP_BOUNDS.with(|bounds| {

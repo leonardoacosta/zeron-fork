@@ -105,6 +105,7 @@ actions!(
 /// Restore a default focus only after an in-flight handoff has had a frame to
 /// claim the window. A synchronous focus-lost fallback can otherwise steal
 /// focus from controls that are mounting in response to the same input event.
+#[cfg(test)]
 pub(crate) fn restore_focus_if_empty_on_next_frame<T: 'static>(
     focus: FocusHandle,
     window: &mut Window,
@@ -813,6 +814,10 @@ impl NavHistory {
 
     pub fn len(&self) -> usize {
         self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
     }
 }
 
@@ -3273,10 +3278,12 @@ impl Shell {
                 self.state.clone(),
                 self.active_chat.clone(),
                 path.clone(),
-                self.settings.files_autosave_enabled,
-                self.settings.files_autosave_delay_ms,
-                crate::typography::code_font_size(cx),
-                self.settings.files_word_wrap,
+                (
+                    self.settings.files_autosave_enabled,
+                    self.settings.files_autosave_delay_ms,
+                    crate::typography::code_font_size(cx),
+                    self.settings.files_word_wrap,
+                ),
                 self.settings.files_show_all,
                 cx,
             )
@@ -3287,7 +3294,7 @@ impl Shell {
             window,
             move |this: &mut Self, source, event, window, cx| {
                 if matches!(event, FilesEvent::OpenFile(_) | FilesEvent::RevealFile(_))
-                    && !this.accepts_file_navigation(&event_panel_key, &source, cx)
+                    && !this.accepts_file_navigation(&event_panel_key, source, cx)
                 {
                     return;
                 }
@@ -4433,9 +4440,7 @@ impl Shell {
                             keymap,
                             escape_stops_active_agent,
                             composer_send_behavior,
-                            appshots_enabled,
-                            appshot_sound_enabled,
-                            appshot_destination,
+                            (appshots_enabled, appshot_sound_enabled, appshot_destination),
                             cx,
                         )
                     });
@@ -4445,7 +4450,7 @@ impl Shell {
                         |this: &mut Shell, _, event: &ShortcutsEvent, cx| {
                             match event {
                                 ShortcutsEvent::KeymapChanged(keymap) => {
-                                    this.settings.keymap = keymap.clone();
+                                    this.settings.keymap = keymap.as_ref().clone();
                                 }
                                 ShortcutsEvent::EscapeStopsActiveAgentChanged(enabled) => {
                                     this.settings.escape_stops_active_agent = *enabled;
@@ -4588,7 +4593,6 @@ impl Shell {
             if changed {
                 self.schedule_save(cx);
             }
-            return;
         }
         // Remote pins come exclusively from per-pin registry records.
     }
@@ -13362,10 +13366,7 @@ mod exit_regressions {
                     FilesSurface::new(
                         shell.state.clone(),
                         "preview".into(),
-                        false,
-                        1000,
-                        13.0,
-                        false,
+                        (false, 1000, 13.0, false),
                         false,
                         cx,
                     )
@@ -13709,8 +13710,8 @@ mod exit_regressions {
                     panel
                 })
                 .unwrap();
-            let terminal_window = if !embedded && drawer_window.is_some() {
-                drawer_window.unwrap()
+            let terminal_window = if let Some(handle) = drawer_window.filter(|_| !embedded) {
+                handle
             } else {
                 let handle = cx.update(|cx| {
                     cx.open_window(gpui::WindowOptions::default(), |_, _| panel.clone())
@@ -14298,10 +14299,7 @@ mod exit_regressions {
                         let mut files = FilesSurface::new(
                             state,
                             "test".into(),
-                            false,
-                            1000,
-                            13.0,
-                            false,
+                            (false, 1000, 13.0, false),
                             false,
                             cx,
                         );

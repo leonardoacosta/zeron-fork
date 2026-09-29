@@ -155,7 +155,7 @@ pub const CARET_BLINK_MS: u64 = 500;
 /// through the first half-period (typing bursts never blink — each keystroke
 /// resets the phase), then alternating.
 pub fn caret_visible(ms_since_activity: u64) -> bool {
-    (ms_since_activity / CARET_BLINK_MS) % 2 == 0
+    (ms_since_activity / CARET_BLINK_MS).is_multiple_of(2)
 }
 
 /// Auto-grow: content height for a wrapped-line count.
@@ -1248,10 +1248,10 @@ impl TextProjection {
 
     fn raw_to_display(&self, raw: usize) -> usize {
         let ix = self.mappings.partition_point(|(range, _)| range.end <= raw);
-        if let Some((range, display)) = self.mappings.get(ix) {
-            if raw > range.start {
-                return display.start;
-            }
+        if let Some((range, display)) = self.mappings.get(ix)
+            && raw > range.start
+        {
+            return display.start;
         }
         let (raw_at, display_at) = ix
             .checked_sub(1)
@@ -1266,14 +1266,14 @@ impl TextProjection {
         let ix = self
             .mappings
             .partition_point(|(_, display)| display.end <= display_offset);
-        if let Some((range, display)) = self.mappings.get(ix) {
-            if display_offset > display.start {
-                return if display_offset - display.start < display.len() / 2 {
-                    range.start
-                } else {
-                    range.end
-                };
-            }
+        if let Some((range, display)) = self.mappings.get(ix)
+            && display_offset > display.start
+        {
+            return if display_offset - display.start < display.len() / 2 {
+                range.start
+            } else {
+                range.end
+            };
         }
         let (raw_at, display_at) = ix
             .checked_sub(1)
@@ -2844,17 +2844,14 @@ impl ComposerInput {
             return;
         }
         if let Some(mut text) = item.text() {
-            if self.mentions_enabled {
-                if let Some(value) = item
+            if self.mentions_enabled
+                && let Some(value) = item
                     .metadata()
                     .and_then(|m| serde_json::from_str::<serde_json::Value>(m).ok())
-                {
-                    if value.get("text").and_then(|v| v.as_str()) == Some(text.as_str()) {
-                        if let Some(raw) = value.get("zeronComposerV1").and_then(|v| v.as_str()) {
-                            text = raw.to_owned();
-                        }
-                    }
-                }
+                && value.get("text").and_then(|v| v.as_str()) == Some(text.as_str())
+                && let Some(raw) = value.get("zeronComposerV1").and_then(|v| v.as_str())
+            {
+                text = raw.to_owned();
             }
             // Clipboard operations remain separate undo steps, even a one-character paste.
             self.last_edit = None;
@@ -2902,14 +2899,15 @@ impl ComposerInput {
     }
 
     fn newline(&mut self, _: &Newline, window: &mut Window, cx: &mut Context<Self>) {
-        if self.mentions_enabled && self.selected_range.is_empty() && self.marked_range.is_none() {
-            if let Some((range, inserted)) =
+        if self.mentions_enabled
+            && self.selected_range.is_empty()
+            && self.marked_range.is_none()
+            && let Some((range, inserted)) =
                 composer_markdown::newline_edit(&self.content, self.cursor_offset())
-            {
-                let range = self.range_to_utf16(&range);
-                self.replace_text_in_range(Some(range), &inserted, window, cx);
-                return;
-            }
+        {
+            let range = self.range_to_utf16(&range);
+            self.replace_text_in_range(Some(range), &inserted, window, cx);
+            return;
         }
         let line_end = self.line_range_at(self.cursor_offset()).end;
         let newline = if self.line_content_end_at(self.cursor_offset()) < line_end {
@@ -3562,12 +3560,11 @@ impl ComposerInput {
         let faces = if self.mentions_enabled && !is_placeholder {
             raw_faces
                 .iter()
-                .cloned()
                 .map(|(range, face)| {
                     (
                         self.projection.raw_to_display(range.start)
                             ..self.projection.raw_to_display(range.end),
-                        face,
+                        *face,
                     )
                 })
                 .collect::<Vec<_>>()
@@ -3701,27 +3698,28 @@ impl ComposerInput {
                 .next()
                 .unwrap_or_default();
             let mut indent = px(0.0);
-            if self.mentions_enabled && !is_placeholder {
-                if let Some(prefix) = composer_markdown::list_prefix(raw_line).filter(|prefix| {
+            if self.mentions_enabled
+                && !is_placeholder
+                && let Some(prefix) = composer_markdown::list_prefix(raw_line).filter(|prefix| {
                     let marker_at = raw_at + prefix.indent;
                     let code_ix = code_ranges.partition_point(|range| range.end <= marker_at);
                     !code_ranges
                         .get(code_ix)
                         .is_some_and(|range| range.contains(&marker_at))
-                }) {
-                    let end = self
-                        .projection
-                        .raw_to_display(raw_at + prefix.end)
-                        .saturating_sub(display_at)
-                        .min(text.len());
-                    let marker: SharedString = text[..end].to_string().into();
-                    let marker_run = run_for(marker.len(), false, false);
-                    indent = window
-                        .text_system()
-                        .shape_line(marker, font_size, &[marker_run], None)
-                        .width
-                        .min(width * 0.4);
-                }
+                })
+            {
+                let end = self
+                    .projection
+                    .raw_to_display(raw_at + prefix.end)
+                    .saturating_sub(display_at)
+                    .min(text.len());
+                let marker: SharedString = text[..end].to_string().into();
+                let marker_run = run_for(marker.len(), false, false);
+                indent = window
+                    .text_system()
+                    .shape_line(marker, font_size, &[marker_run], None)
+                    .width
+                    .min(width * 0.4);
             }
             let end = display_at + text.len();
             let first_run = run_ranges.partition_point(|(r, _)| r.end <= display_at);
@@ -3844,17 +3842,17 @@ impl ComposerInput {
             return self.scroll_left != previous;
         }
         let previous = self.scroll_top;
-        if self.follow_cursor {
-            if let Some(cursor) = self.cursor_point() {
-                self.scroll_top = input_scroll_offset_for_cursor(
-                    self.scroll_top,
-                    f32::from(cursor.y),
-                    f32::from(self.line_height),
-                    self.content_height,
-                    element_height,
-                    self.settled_viewport_height,
-                );
-            }
+        if self.follow_cursor
+            && let Some(cursor) = self.cursor_point()
+        {
+            self.scroll_top = input_scroll_offset_for_cursor(
+                self.scroll_top,
+                f32::from(cursor.y),
+                f32::from(self.line_height),
+                self.content_height,
+                element_height,
+                self.settled_viewport_height,
+            );
         }
         self.scroll_top = self.scroll_top.clamp(
             0.0,
@@ -4776,9 +4774,7 @@ fn mention_token(text: &str, cursor: usize) -> Option<MentionToken> {
         .rev()
         .find_map(|(at, ch)| ch.is_whitespace().then_some(at + ch.len_utf8()))
         .unwrap_or(0);
-    let Some(relative_at) = text[token_start..cursor].rfind('@') else {
-        return None;
-    };
+    let relative_at = text[token_start..cursor].rfind('@')?;
     let at = token_start + relative_at;
     let valid_boundary = at == 0
         || text[..at]
@@ -10635,7 +10631,7 @@ mod tests {
                 input.move_to(0, cx);
                 input.end(&End, window, cx);
                 input.backspace(&Backspace, window, cx);
-                let previous = first.grapheme_indices(true).last().unwrap().0;
+                let previous = first.grapheme_indices(true).next_back().unwrap().0;
                 assert_eq!(input.text(), format!("{}\r\nnext", &first[..previous]));
                 input.undo(&Undo, window, cx);
                 input.move_to(first.len(), cx);
@@ -11807,7 +11803,7 @@ mod tests {
             };
             composer.read_with(cx, |composer, _| {
                 assert!(!composer.slash.loading);
-                assert_eq!(visible_names(composer), [expected.clone()]);
+                assert_eq!(visible_names(composer), std::slice::from_ref(&expected));
                 assert!(
                     !composer.slash_cache[&composer.slash.context]
                         .iter()
@@ -13229,7 +13225,7 @@ mod tests {
     fn cluster_inset_glides_between_the_source_endpoints() {
         assert_eq!(ACTION_UTILITY_GAP, 2.0);
         assert_eq!(ACTION_PRIMARY_GAP, Theme::SPACE_SM);
-        assert!(ACTION_UTILITY_GAP < ACTION_PRIMARY_GAP);
+        const { assert!(ACTION_UTILITY_GAP < ACTION_PRIMARY_GAP) };
         // The morph starts from the OLD mode's resting inset (no sideways
         // step at the commit) and eases to the committed mode's…
         assert_eq!(morph_cluster_inset(true, 0.0), 8.0); // expand: from compact pr-2
@@ -13671,7 +13667,7 @@ mod appshot_rebase_tests {
             fresh.id = "fresh".into();
             composer.stage_appshot_for("minted".into(), original.clone(), cx);
             composer.stage_appshot(fresh, cx);
-            composer.restore_failed_appshots(&[original.clone()], "minted", "");
+            composer.restore_failed_appshots(std::slice::from_ref(&original), "minted", "");
             assert_eq!(composer.staged_appshots().len(), 2);
             assert_eq!(
                 composer.staged_appshots()[0].accessibility,

@@ -877,9 +877,7 @@ impl AppState {
     /// [`Self::terminal_open_cwd`] for a specific panel key (the tab being
     /// opened, which matches the selected session).
     pub fn terminal_open_cwd_for(&self, session_key: &str) -> Option<String> {
-        let Some(space_id) = session_key.strip_prefix(CANVAS_PANEL_PREFIX) else {
-            return None;
-        };
+        let space_id = session_key.strip_prefix(CANVAS_PANEL_PREFIX)?;
         if space_id.is_empty() || self.no_project {
             return Some("~".to_string());
         }
@@ -2862,6 +2860,31 @@ fn spawn_subagent_watch(
     })
 }
 
+#[cfg(feature = "appshots-fixture")]
+impl AppState {
+    /// Keep fixture documents deterministic while using the real attachment RPC.
+    pub fn fixture_attachment_engine(&mut self, engine: EngineHandle) {
+        self.engine = Some(engine);
+    }
+}
+
+#[cfg(feature = "project-palette-fixture")]
+impl AppState {
+    /// Seed provider metadata for the isolated native sidebar review fixture.
+    pub fn fixture_sidebar_change_request(
+        &mut self,
+        snapshot: zeron_proto::CheckoutChangeRequestStatus,
+    ) {
+        let key = crate::change_requests::ChangeRequestWatchKey {
+            device_id: snapshot.device_id.clone(),
+            cwd: snapshot.cwd.clone(),
+            branch: snapshot.branch.clone(),
+            checkout_id: Some(snapshot.checkout_id.clone()),
+        };
+        self.change_requests.store(key, snapshot);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4655,7 +4678,10 @@ mod tests {
         expected.line = 9;
         expected.body = "Revised".into();
         assert_eq!(state.review_comments("chat-1"), &[expected]);
-        assert_eq!(state.review_comments("chat-2"), &[original.clone()]);
+        assert_eq!(
+            state.review_comments("chat-2"),
+            std::slice::from_ref(&original)
+        );
         assert!(state.review_comment_flush_pending("chat-1"));
         state.remove_review_comment("chat-1", &original.id);
         state.update_review_comment_body("chat-1", &original.id, "Stale".into());
@@ -4713,29 +4739,31 @@ mod tests {
 
     #[test]
     fn explicit_capabilities_distinguish_same_version_builds() {
-        let mut state = AppState::default();
-        state.devices = vec![
-            Device {
-                id: "personal".into(),
-                name: "personal".into(),
-                platform: "macos".into(),
-                last_seen_at: None,
-                created_at: None,
-                version: Some("0.2.31".into()),
-                cursor_sdk_version: None,
-                capabilities: vec![zeron_proto::capabilities::MESSAGE_QUEUE_V1.into()],
-            },
-            Device {
-                id: "upstream".into(),
-                name: "upstream".into(),
-                platform: "macos".into(),
-                last_seen_at: None,
-                created_at: None,
-                version: Some("0.2.31".into()),
-                cursor_sdk_version: None,
-                capabilities: Vec::new(),
-            },
-        ];
+        let state = AppState {
+            devices: vec![
+                Device {
+                    id: "personal".into(),
+                    name: "personal".into(),
+                    platform: "macos".into(),
+                    last_seen_at: None,
+                    created_at: None,
+                    version: Some("0.2.31".into()),
+                    cursor_sdk_version: None,
+                    capabilities: vec![zeron_proto::capabilities::MESSAGE_QUEUE_V1.into()],
+                },
+                Device {
+                    id: "upstream".into(),
+                    name: "upstream".into(),
+                    platform: "macos".into(),
+                    last_seen_at: None,
+                    created_at: None,
+                    version: Some("0.2.31".into()),
+                    cursor_sdk_version: None,
+                    capabilities: Vec::new(),
+                },
+            ],
+            ..AppState::default()
+        };
 
         assert!(state.device_supports("personal", zeron_proto::capabilities::MESSAGE_QUEUE_V1));
         assert!(!state.device_supports("upstream", zeron_proto::capabilities::MESSAGE_QUEUE_V1));
@@ -4745,8 +4773,10 @@ mod tests {
     fn delivery_degradation_and_queued_sends_tell_the_truth() {
         use zeron_proto::{ChatConnectivity, ConnectivityState};
         let now = Utc::now();
-        let mut s = AppState::default();
-        s.local_device_id = Some("local".into());
+        let mut s = AppState {
+            local_device_id: Some("local".into()),
+            ..AppState::default()
+        };
         let mut remote = chat("c-remote", 0, None);
         remote.device_id = "remote".into();
         let mut local = chat("c-local", 0, None);
@@ -4860,30 +4890,5 @@ mod tests {
         assert!(!s.send_queued("c-remote", now));
         // …but the explicit undelivered flag still tells the truth.
         assert!(s.send_undelivered("c-remote", now));
-    }
-}
-
-#[cfg(feature = "appshots-fixture")]
-impl AppState {
-    /// Keep fixture documents deterministic while using the real attachment RPC.
-    pub fn fixture_attachment_engine(&mut self, engine: EngineHandle) {
-        self.engine = Some(engine);
-    }
-}
-
-#[cfg(feature = "project-palette-fixture")]
-impl AppState {
-    /// Seed provider metadata for the isolated native sidebar review fixture.
-    pub fn fixture_sidebar_change_request(
-        &mut self,
-        snapshot: zeron_proto::CheckoutChangeRequestStatus,
-    ) {
-        let key = crate::change_requests::ChangeRequestWatchKey {
-            device_id: snapshot.device_id.clone(),
-            cwd: snapshot.cwd.clone(),
-            branch: snapshot.branch.clone(),
-            checkout_id: Some(snapshot.checkout_id.clone()),
-        };
-        self.change_requests.store(key, snapshot);
     }
 }

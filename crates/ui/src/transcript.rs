@@ -4217,8 +4217,7 @@ impl Transcript {
             }
             self.own_turn_last_tick = None;
         } else if anchored
-            && err <= OWN_SEND_GLIDE_SNAP_PX
-            && err >= -(OWN_SEND_SCROLL_SLACK_PX + 2.0)
+            && (-(OWN_SEND_SCROLL_SLACK_PX + 2.0)..=OWN_SEND_GLIDE_SNAP_PX).contains(&err)
         {
             // At the hold — or resting inside the slack under it (a restick
             // that fired at the true bottom): land WITHOUT pulling the view
@@ -4757,7 +4756,11 @@ impl Transcript {
             if baseline_changed && historical_count == tools.len() {
                 reveal.header_started_at = None;
             }
-            let first_row_delay = is_new_group.then_some(TOOL_FIRST_ROW_DELAY_MS).unwrap_or(0);
+            let first_row_delay = if is_new_group {
+                TOOL_FIRST_ROW_DELAY_MS
+            } else {
+                0
+            };
             let mut arrival_ix = 0;
             if whole_group_historical {
                 reveal.starts.clear();
@@ -5515,8 +5518,7 @@ impl Transcript {
     /// never feeds measured layout back into the virtualized list.
     fn render_user_body(
         &mut self,
-        row_id: &SharedString,
-        row_ix: usize,
+        (row_id, row_ix): (&SharedString, usize),
         text: SharedString,
         mentions: Arc<Vec<crate::composer::SentMentionSpan>>,
         theme: &Theme,
@@ -5635,8 +5637,7 @@ impl Transcript {
             .child(body)
             .when(collapsible, |el| {
                 el.child(self.render_user_expander(
-                    row_id,
-                    row_ix,
+                    (row_id, row_ix),
                     expanded,
                     collapsed_h,
                     measured_h,
@@ -5651,8 +5652,7 @@ impl Transcript {
     /// continuation ellipsis when collapsed. No pill, border, or button wash.
     fn render_user_expander(
         &mut self,
-        row_id: &SharedString,
-        row_ix: usize,
+        (row_id, row_ix): (&SharedString, usize),
         expanded: bool,
         collapsed_h: f32,
         measured_h: Rc<Cell<f32>>,
@@ -6134,7 +6134,7 @@ impl Transcript {
             if !live {
                 return None;
             }
-            let elapsed = ((now.timestamp_millis() - last.created_at).max(0) / 1000) as i64;
+            let elapsed = (now.timestamp_millis() - last.created_at).max(0) / 1000;
             (false, false, elapsed, flavour_seed(doc_id))
         } else {
             let chat_id = self.chat_id.clone()?;
@@ -6365,7 +6365,12 @@ impl Transcript {
                                 .text_color(theme.text)
                                 .when(pending, |el| el.opacity(0.65))
                                 .child(self.render_user_body(
-                                    &row.id, ix, text, mentions, &theme, window, cx,
+                                    (&row.id, ix),
+                                    text,
+                                    mentions,
+                                    &theme,
+                                    window,
+                                    cx,
                                 )),
                         ),
                     );
@@ -6498,9 +6503,7 @@ impl Transcript {
                 &row.id,
                 tools,
                 summary,
-                *auto_open,
-                *worked_secs,
-                *compact_shell,
+                (*auto_open, *worked_secs, *compact_shell),
                 &theme,
                 cx,
             ),
@@ -6741,8 +6744,8 @@ impl Transcript {
             .map(|(_, ix)| *ix);
         let row_key = row_id.clone();
         let entity = cx.weak_entity();
-        let handler: Rc<dyn Fn(usize, SharedString, &mut Window, &mut gpui::App)> =
-            Rc::new(move |ix, code, _window, cx| {
+        let handler = Rc::new(
+            move |ix: usize, code: SharedString, _window: &mut Window, cx: &mut gpui::App| {
                 cx.write_to_clipboard(ClipboardItem::new_string(code.to_string()));
                 let row_key = row_key.clone();
                 entity
@@ -6762,7 +6765,8 @@ impl Transcript {
                         cx.notify();
                     })
                     .ok();
-            });
+            },
+        );
         render::CopyUi { handler, copied_ix }
     }
 
@@ -6871,9 +6875,7 @@ impl Transcript {
         row_id: &SharedString,
         tools: &Arc<Vec<ToolItem>>,
         summary: &SharedString,
-        auto_open: bool,
-        worked_secs: Option<i64>,
-        compact_shell: bool,
+        (auto_open, worked_secs, compact_shell): (bool, Option<i64>, bool),
         theme: &Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
@@ -7107,20 +7109,16 @@ impl Transcript {
                 } else {
                     base_row_height
                 };
-                if !cx.reduce_motion() {
-                    if let Some(at) = fold.toggled_at {
-                        let t = TOOL_FOLD
-                            .curve
-                            .eval(at.elapsed().as_secs_f32() / TOOL_FOLD.total().as_secs_f32());
-                        if t < 1.0 {
-                            motion_active = true;
-                        }
-                        return motion::lerp(
-                            fold.from + base_row_height - CHIP_CARD_HEIGHT,
-                            target,
-                            t,
-                        );
+                if !cx.reduce_motion()
+                    && let Some(at) = fold.toggled_at
+                {
+                    let t = TOOL_FOLD
+                        .curve
+                        .eval(at.elapsed().as_secs_f32() / TOOL_FOLD.total().as_secs_f32());
+                    if t < 1.0 {
+                        motion_active = true;
                     }
+                    return motion::lerp(fold.from + base_row_height - CHIP_CARD_HEIGHT, target, t);
                 }
                 target
             })
@@ -7327,12 +7325,8 @@ impl Transcript {
                     return reveal_tool_row(
                         tool_chip(
                             tool,
-                            collapses,
-                            ix > 0,
-                            ix + 1 < tools.len(),
-                            content_reveal,
-                            connector_reveal,
-                            continuation_reveal,
+                            (collapses, ix > 0, ix + 1 < tools.len()),
+                            (content_reveal, connector_reveal, continuation_reveal),
                             theme,
                             cx.entity_id(),
                             cx,
@@ -8425,12 +8419,8 @@ fn activity_ribbon(path: &mut PathBuilder, points: &[Point<Pixels>]) {
 /// A plain activity row, or a card for a subagent without a linked document.
 fn tool_chip(
     tool: &ToolItem,
-    rail: bool,
-    has_predecessor: bool,
-    continues: bool,
-    content_reveal: f32,
-    connector_reveal: f32,
-    continuation_reveal: f32,
+    (rail, has_predecessor, continues): (bool, bool, bool),
+    (content_reveal, connector_reveal, continuation_reveal): (f32, f32, f32),
     theme: &Theme,
     view: gpui::EntityId,
     cx: &mut gpui::App,
@@ -8837,6 +8827,14 @@ impl Render for Transcript {
     }
 }
 
+#[cfg(feature = "appshots-fixture")]
+impl Transcript {
+    pub fn fixture_appshots_start(&mut self, cx: &mut Context<Self>) {
+        self.list.scroll_to(gpui::ListOffset::default());
+        cx.notify();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -8938,9 +8936,7 @@ mod tests {
                 &row.id,
                 tools,
                 summary,
-                *auto_open,
-                None,
-                false,
+                (*auto_open, None, false),
                 &Theme::dark(),
                 cx,
             );
@@ -9548,9 +9544,7 @@ mod tests {
                     &row.id,
                     tools,
                     summary,
-                    *auto_open,
-                    None,
-                    false,
+                    (*auto_open, None, false),
                     &Theme::dark(),
                     cx,
                 );
@@ -9588,9 +9582,7 @@ mod tests {
                     &row.id,
                     tools,
                     summary,
-                    *auto_open,
-                    None,
-                    false,
+                    (*auto_open, None, false),
                     &Theme::dark(),
                     cx,
                 );
@@ -9629,7 +9621,9 @@ mod tests {
         let path = path.build().unwrap();
         let area: f32 = path
             .vertices
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|triangle| {
                 let a = triangle[0].xy_position;
                 let b = triangle[1].xy_position;
@@ -10537,7 +10531,7 @@ mod tests {
             tools[0].detail.as_deref(),
             Some(ToolDetail::Thought { lines, .. }) if !lines.is_empty()
         ));
-        let summary = tool_group_summary(&tools);
+        let summary = tool_group_summary(tools);
         assert!(summary.starts_with("Thought 2 times"), "{summary}");
         assert!(summary.contains("2 commands"), "{summary}");
 
@@ -10553,7 +10547,7 @@ mod tests {
         let RowKind::ToolGroup { tools, .. } = &rows[0].kind else {
             panic!("expected a tool group");
         };
-        assert_eq!(tool_group_summary(&tools), "Thought process");
+        assert_eq!(tool_group_summary(tools), "Thought process");
 
         // Empty reasoning renders nothing.
         let entry = assistant(
@@ -13896,13 +13890,5 @@ mod tests {
             vec![text_part("t0", ""), text_part("t1", "   ")],
         );
         assert!(rows_for_entry(&entry, false, false, &mut parse).is_empty());
-    }
-}
-
-#[cfg(feature = "appshots-fixture")]
-impl Transcript {
-    pub fn fixture_appshots_start(&mut self, cx: &mut Context<Self>) {
-        self.list.scroll_to(gpui::ListOffset::default());
-        cx.notify();
     }
 }

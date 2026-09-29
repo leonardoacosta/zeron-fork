@@ -418,8 +418,7 @@ impl Composer {
         let edit = self.queue_action(
             &key,
             "edit",
-            "Edit",
-            icons::PEN,
+            ("Edit", icons::PEN),
             !being_removed,
             theme,
             cx.listener(move |this, _, _, cx| {
@@ -430,12 +429,14 @@ impl Composer {
         let discard = self.queue_action(
             &key,
             "drop",
-            if being_removed {
-                "Removing…"
-            } else {
-                "Remove"
-            },
-            icons::TRASH_BIN_MINIMALISTIC,
+            (
+                if being_removed {
+                    "Removing…"
+                } else {
+                    "Remove"
+                },
+                icons::TRASH_BIN_MINIMALISTIC,
+            ),
             !being_removed,
             theme,
             cx.listener(move |this, _, _, cx| {
@@ -464,8 +465,7 @@ impl Composer {
         let save = self.queue_action(
             &key,
             "save",
-            "Save to queue",
-            icons::QUEUE_CHECK,
+            ("Save to queue", icons::QUEUE_CHECK),
             !self.queue_edit_finishing,
             theme,
             cx.listener(|this, _, _, cx| {
@@ -475,8 +475,7 @@ impl Composer {
         let cancel = self.queue_action(
             &key,
             "cancel",
-            "Cancel",
-            icons::QUEUE_CLOSE,
+            ("Cancel", icons::QUEUE_CLOSE),
             !self.queue_edit_finishing,
             theme,
             cx.listener(|this, _, _, cx| {
@@ -831,7 +830,6 @@ impl Composer {
         path: &str,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        use crate::attachments;
         let device = self
             .state
             .read(cx)
@@ -918,8 +916,7 @@ impl Composer {
         &self,
         key: &SharedString,
         slot: &str,
-        label: &'static str,
-        glyph: &'static str,
+        (label, glyph): (&'static str, &'static str),
         enabled: bool,
         theme: &Theme,
         on_click: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
@@ -1916,7 +1913,7 @@ mod tests {
         for user_text in ["inspect this", ""] {
             let body = crate::appshots::with_appshots(
                 user_text,
-                &[shot.clone()],
+                std::slice::from_ref(&shot),
                 &std::collections::HashMap::from([(shot.screenshot.id.clone(), paths[0].clone())]),
             );
             let expected = if user_text.is_empty() {
@@ -1984,7 +1981,7 @@ mod tests {
 #[cfg(test)]
 mod scroll_tests {
     use super::*;
-    use gpui::{AppContext, ScrollHandle, TestAppContext, point};
+    use gpui::{ScrollHandle, TestAppContext, point};
 
     struct QueueScrollTestView {
         queue: ScrollHandle,

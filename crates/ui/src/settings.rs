@@ -1548,7 +1548,8 @@ impl UiSettings {
                         .get_mut("keymap")
                         .and_then(serde_json::Value::as_object_mut)
                     {
-                        for (id, field) in [(ShortcutId::ToggleFiles, "toggleFiles")] {
+                        {
+                            let (id, field) = (ShortcutId::ToggleFiles, "toggleFiles");
                             let default = platform_combo(id.default_combo());
                             let taken = !keymap.contains_key(field)
                                 && keymap.values().any(|existing| {

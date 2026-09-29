@@ -203,7 +203,7 @@ pub fn run_app(config: UiConfig) {
         let click_state = state.clone();
         cx.spawn(async move |cx| {
             while let Some(chat_id) = click_rx.next().await {
-                let _ = cx.update(|cx| open_notified_chat(chat_id, &click_state, cx));
+                cx.update(|cx| open_notified_chat(chat_id, &click_state, cx));
             }
         })
         .detach();

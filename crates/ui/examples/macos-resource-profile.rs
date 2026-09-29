@@ -1,18 +1,12 @@
 //! UI-only replay with native CoreText/Metal and real animation clocks.
 //! Input is frames.json from scripts/resource-profile.mjs. An offscreen target
 //! replaces the window compositor; this is not a whole-app CPU measurement.
-use gpui::{AppContext, Bounds, WindowBounds, WindowOptions, px, size};
-use std::{
-    cell::RefCell,
-    rc::Rc,
-    time::{Duration, Instant},
-};
-use zeron_ui::*;
 
 #[cfg(target_os = "macos")]
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+#[cfg(target_os = "macos")]
 #[derive(serde::Deserialize)]
 struct Frame {
     at: u64,

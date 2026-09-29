@@ -18,6 +18,8 @@ use gpui::{
 #[derive(Default)]
 struct PaintFades(RefCell<Vec<(WindowId, EdgeFade)>>);
 
+type OverflowQuery = dyn Fn(&App) -> (bool, bool);
+
 impl Global for PaintFades {}
 
 fn active_fade(window: &Window, cx: &App) -> Option<EdgeFade> {
@@ -78,7 +80,7 @@ pub struct EdgeFaded {
     left: bool,
     right: bool,
     scroll_y: Option<ScrollHandle>,
-    overflow_y: Option<Box<dyn Fn(&App) -> (bool, bool)>>,
+    overflow_y: Option<Box<OverflowQuery>>,
     scroll_x: Option<ScrollHandle>,
     smooth_overflow_x: bool,
     child: AnyElement,
@@ -280,6 +282,14 @@ fn label_fade_outset(overflow: f32, band: f32) -> f32 {
     band * (1.0 - eased)
 }
 
+impl IntoElement for EdgeFaded {
+    type Element = Self;
+
+    fn into_element(self) -> Self::Element {
+        self
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -415,13 +425,5 @@ mod tests {
             assert!(previous - edge_alpha < 0.02);
             previous = edge_alpha;
         }
-    }
-}
-
-impl IntoElement for EdgeFaded {
-    type Element = Self;
-
-    fn into_element(self) -> Self::Element {
-        self
     }
 }

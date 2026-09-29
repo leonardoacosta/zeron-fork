@@ -830,6 +830,20 @@ pub fn reduced_motion(cx: &App) -> bool {
     cx.reduce_motion()
 }
 
+#[cfg(windows)]
+#[path = "motion/windows_pulse.rs"]
+mod windows_pulse;
+
+/// A bounded activation sheen for Fast service tier; GPUI handles reduced motion.
+pub fn fast_tier(
+    id: impl Into<ElementId>,
+    element: impl IntoElement + gpui::Styled + 'static,
+) -> impl IntoElement {
+    element.with_animation(id, Animation::new(Duration::from_millis(700)), |el, t| {
+        el.opacity(1.0 - 0.35 * (1.0 - t) * (std::f32::consts::PI * t).sin())
+    })
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -1157,18 +1171,4 @@ mod tests {
         let mid_rise = gspin_opacity(0.96, 0.1);
         assert!(mid_rise > 0.1 && mid_rise < 1.0, "eases up");
     }
-}
-
-#[cfg(windows)]
-#[path = "motion/windows_pulse.rs"]
-mod windows_pulse;
-
-/// A bounded activation sheen for Fast service tier; GPUI handles reduced motion.
-pub fn fast_tier(
-    id: impl Into<ElementId>,
-    element: impl IntoElement + gpui::Styled + 'static,
-) -> impl IntoElement {
-    element.with_animation(id, Animation::new(Duration::from_millis(700)), |el, t| {
-        el.opacity(1.0 - 0.35 * (1.0 - t) * (std::f32::consts::PI * t).sin())
-    })
 }
