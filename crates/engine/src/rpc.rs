@@ -3616,13 +3616,23 @@ mod tests {
             .create_chat("empty", None, Some(&core.device_id), None, None)
             .unwrap();
         let client = zeron_rpc::memory_client(core.rpc_service());
-        let params = serde_json::json!({"id":"a","objective":"objective","linkedSessions":["empty"],"mutationId":"create-1"});
+        let params = serde_json::json!({
+            "id": "a", "objective": "objective", "linkedSessions": ["empty"],
+            "mutationId": "create-1", "allowedActions": [],
+            "findings": ["Original finding"], "evidence": ["Original evidence"],
+            "reviews": [{"revision": 1, "reviewer": "reviewer", "outcome": "pending", "notes": "Original review"}],
+            "unresolvedQuestions": ["Original question?"]
+        });
+        let mut expected = params.clone();
+        expected.as_object_mut().unwrap().remove("mutationId");
+        expected["ownerDeviceId"] = serde_json::json!(core.device_id);
+        expected["profileId"] = serde_json::json!(core.rpc_service().assignment_profile_id);
+        expected["revision"] = serde_json::json!(1);
         let result = client
             .call(methods::PROMOTE_ASSIGNMENT, params.clone())
             .await
             .unwrap();
-        assert_eq!(result["linkedSessions"][0], "empty");
-        assert_eq!(result["revision"], 1);
+        assert_eq!(result, expected);
         let created = client
             .call(
                 methods::CREATE_ASSIGNMENT,
@@ -3650,15 +3660,20 @@ mod tests {
             "retry after later operations returns original result"
         );
         assert!(client.call(methods::PROMOTE_ASSIGNMENT, serde_json::json!({"id":"a","objective":"changed","linkedSessions":["empty"],"mutationId":"create-1"})).await.is_err());
-        let update = serde_json::json!({"id":"a","expectedRevision":1,"mutationId":"edit-1","objective":"updated","linkedSessions":["empty"],"allowedActions":[]});
+        let mut update = params.clone();
+        update["expectedRevision"] = serde_json::json!(1);
+        update["mutationId"] = serde_json::json!("edit-1");
+        update["objective"] = serde_json::json!("updated");
+        expected["objective"] = serde_json::json!("updated");
+        expected["revision"] = serde_json::json!(2);
         let edited = client
             .call(methods::UPDATE_ASSIGNMENT, update.clone())
             .await
             .unwrap();
-        assert_eq!(edited["revision"], 2);
+        assert_eq!(edited, expected);
         assert_eq!(
             client
-                .call(methods::UPDATE_ASSIGNMENT, update)
+                .call(methods::UPDATE_ASSIGNMENT, update.clone())
                 .await
                 .unwrap(),
             edited
@@ -3670,14 +3685,69 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(history.as_array().unwrap().len(), 2);
+        assert_eq!(history, serde_json::json!([result, edited]));
         core.workspace
             .create_chat("replacement", None, Some(&core.device_id), None, None)
             .unwrap();
-        let appended = client.call(methods::UPDATE_ASSIGNMENT, serde_json::json!({"id":"a","expectedRevision":2,"mutationId":"edit-2","objective":"updated","linkedSessions":["empty","replacement"],"allowedActions":[]})).await.unwrap();
-        assert_eq!(appended["linkedSessions"].as_array().unwrap().len(), 2);
+        update["expectedRevision"] = serde_json::json!(2);
+        update["mutationId"] = serde_json::json!("edit-2");
+        update["linkedSessions"] = serde_json::json!(["empty", "replacement"]);
+        update["findings"] = serde_json::json!(["Original finding", "Replacement finding"]);
+        update["evidence"] = serde_json::json!(["Original evidence", "Replacement evidence"]);
+        update["reviews"] = serde_json::json!([
+            {"revision": 1, "reviewer": "reviewer", "outcome": "pending", "notes": "Original review"},
+            {"revision": 3, "reviewer": "replacement-reviewer", "outcome": "accepted", "notes": "Replacement review"}
+        ]);
+        update["unresolvedQuestions"] = serde_json::json!(["Replacement question?"]);
+        expected["revision"] = serde_json::json!(3);
+        for field in [
+            "linkedSessions",
+            "findings",
+            "evidence",
+            "reviews",
+            "unresolvedQuestions",
+        ] {
+            expected[field] = update[field].clone();
+        }
+        let appended = client
+            .call(methods::UPDATE_ASSIGNMENT, update.clone())
+            .await
+            .unwrap();
+        assert_eq!(appended, expected);
+        assert_eq!(
+            client
+                .call(methods::UPDATE_ASSIGNMENT, update)
+                .await
+                .unwrap(),
+            appended
+        );
+        assert_eq!(
+            client
+                .call(methods::PROMOTE_ASSIGNMENT, params)
+                .await
+                .unwrap(),
+            result
+        );
         assert!(client.call(methods::UPDATE_ASSIGNMENT, serde_json::json!({"id":"a","expectedRevision":3,"mutationId":"edit-3","objective":"updated","linkedSessions":["replacement"],"allowedActions":[]})).await.is_err());
         assert!(client.call(methods::UPDATE_ASSIGNMENT, serde_json::json!({"id":"a","expectedRevision":3,"mutationId":"edit-4","objective":"updated","linkedSessions":["empty","replacement"],"allowedActions":["expanded"]})).await.is_err());
+        assert_eq!(
+            client
+                .call(methods::GET_ASSIGNMENT, serde_json::json!({"id":"a"}))
+                .await
+                .unwrap(),
+            expected
+        );
+        let final_history = client
+            .call(
+                methods::LIST_ASSIGNMENT_HISTORY,
+                serde_json::json!({"id":"a"}),
+            )
+            .await
+            .unwrap();
+        let final_history = final_history.as_array().unwrap();
+        assert_eq!(final_history.len(), 3);
+        assert_eq!(&final_history[..2], history.as_array().unwrap().as_slice());
+        assert_eq!(final_history, &vec![result, edited, appended]);
         assert_eq!(harness.0.load(std::sync::atomic::Ordering::SeqCst), 0);
         assert!(
             core.doc_host
