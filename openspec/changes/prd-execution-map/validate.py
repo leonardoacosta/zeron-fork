@@ -43,7 +43,11 @@ for unit in units:
         assert path.is_file(), f'missing artifact: {path}'
         texts[name] = path.read_text()
         assert not re.search(r'\b(?:TBD|TODO)\b', texts[name]), f'placeholder: {path}'
-    assert 'Implementation gate CLOSED' in texts['proposal.md'], slug
+    if slug == 'ci-promotion-gates':
+        assert 'Status: implemented locally, not promoted.' in texts['proposal.md'], slug
+        assert 'hosted enforcement remains blocked.' in texts['proposal.md'], slug
+    else:
+        assert 'Implementation gate CLOSED' in texts['proposal.md'], slug
     assert f"**Round:** {unit['round']}" in texts['proposal.md'], slug
     for dependency in unit['deps']:
         assert f'`{dependency}`' in texts['proposal.md'], (slug, dependency)
