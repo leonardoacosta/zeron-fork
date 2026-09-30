@@ -618,3 +618,10 @@ if __name__ == "__main__":
 - [ ] Populate record only from observed CI run/job and artifact outputs. Independent reviewer opens native run URLs, verifies tested merge/head/base revision, required jobs, real selected counts and evidence artifacts. Self-reported JSON can be forged; this checker intentionally cannot prove provenance and must never be sole promotion input.
 - [ ] Run `python3 openspec/changes/ci-promotion-gates/verify_round.py MANIFEST.json EVIDENCE.json`. Nonzero blocks review. Zero does not authorize merge, execution or delivery; current required hosted checks and independent product acceptance still gate promotion.
 - [ ] A research unit may finish a bounded research deliverable with explicit unknown findings, but no dependent implementation may promote while its required capability remains unknown/blocked. Do not use research success as provider support.
+
+
+## Owned fork enforcement setup (2026-09-30)
+
+The upstream-access blocker is superseded: `origin` is now `https://github.com/leonardoacosta/zeron-fork.git`; `upstream` preserves `https://github.com/zeronsh/zeron.git`. The fork default branch is `fork/phase1-foundation`, preserving both the verified local history and the divergent upstream-derived `main` without force-pushing either. Local `main` tracks the fork foundation branch.
+
+Active ruleset `24225939` requires `ui-promotion`, `preview-promotion`, and `windows-promotion`, with strict checks, a pull request, and no bypass actors. Inherited deploy/release/TestFlight/Cursor-update publication workflows are disabled. Test workflows remain enabled. Initial UI and Windows manual runs are running, not yet passing evidence. This documentation-only PR exercises unfiltered PR triggers and all three summary contexts. Hosted acceptance stays open until observed results and failure-blocks-merge evidence are recorded.
