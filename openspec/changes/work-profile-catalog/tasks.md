@@ -28,39 +28,103 @@ mod tests {
     const ID: &str = "e317f12a-17e1-4b0c-a56f-9502b870db9e";
     #[test]
     fn rejects_noncanonical_or_path_ids_on_wire() {
-        for value in ["../other", "", "00000000-0000-0000-0000-000000000000", "E317F12A-17E1-4B0C-A56F-9502B870DB9E", "e317f12a17e14b0ca56f9502b870db9e"] {
+        for value in [
+            "../other",
+            "",
+            "00000000-0000-0000-0000-000000000000",
+            "E317F12A-17E1-4B0C-A56F-9502B870DB9E",
+            "e317f12a17e14b0ca56f9502b870db9e",
+        ] {
             assert!(serde_json::from_value::<WorkProfileId>(serde_json::json!(value)).is_err());
         }
-        assert_eq!(serde_json::from_value::<WorkProfileId>(serde_json::json!(ID)).unwrap().as_str(), ID);
+        assert_eq!(
+            serde_json::from_value::<WorkProfileId>(serde_json::json!(ID))
+                .unwrap()
+                .as_str(),
+            ID
+        );
     }
     #[test]
     fn rejects_revision_zero_overflow_and_fraction() {
-        for value in [serde_json::json!(0), serde_json::json!(MAX_WORK_PROFILE_REVISION + 1), serde_json::json!(-1), serde_json::json!(1.5), serde_json::json!("1")] {
+        for value in [
+            serde_json::json!(0),
+            serde_json::json!(MAX_WORK_PROFILE_REVISION + 1),
+            serde_json::json!(-1),
+            serde_json::json!(1.5),
+            serde_json::json!("1"),
+        ] {
             assert!(serde_json::from_value::<WorkProfileRevision>(value).is_err());
         }
-        assert!(WorkProfileRevision::try_from(MAX_WORK_PROFILE_REVISION).unwrap().checked_next().is_err());
-        assert_eq!(WorkProfileRevision::try_from(1).unwrap().checked_next().unwrap().get(), 2);
+        assert!(
+            WorkProfileRevision::try_from(MAX_WORK_PROFILE_REVISION)
+                .unwrap()
+                .checked_next()
+                .is_err()
+        );
+        assert_eq!(
+            WorkProfileRevision::try_from(1)
+                .unwrap()
+                .checked_next()
+                .unwrap()
+                .get(),
+            2
+        );
     }
     #[test]
     fn names_are_metadata_not_fixed_profile_enum() {
         for value in ["Personal", "Priceless", "Brown", "Fourth profile", "研究"] {
-            assert_eq!(WorkProfileName::try_from(value.to_owned()).unwrap().as_str(), value);
+            assert_eq!(
+                WorkProfileName::try_from(value.to_owned())
+                    .unwrap()
+                    .as_str(),
+                value
+            );
         }
-        for value in ["".to_owned(), "  ".into(), " leading".into(), "trailing ".into(), "a\nb".into(), "界".repeat(86)] {
+        for value in [
+            "".to_owned(),
+            "  ".into(),
+            " leading".into(),
+            "trailing ".into(),
+            "a\nb".into(),
+            "界".repeat(86),
+        ] {
             assert!(WorkProfileName::try_from(value).is_err());
         }
     }
     #[test]
     fn binding_wire_and_rename_keep_original_identity() {
-        let binding = WorkProfileBinding { profile_id: WorkProfileId::try_from(ID.to_owned()).unwrap(), revision: WorkProfileRevision::try_from(1).unwrap() };
-        let original = WorkProfileRecord { binding: binding.clone(), display_name: WorkProfileName::try_from("Personal".to_owned()).unwrap() };
-        let renamed = WorkProfileRecord { binding: WorkProfileBinding { revision: binding.revision.checked_next().unwrap(), ..binding.clone() }, display_name: WorkProfileName::try_from("Renamed".to_owned()).unwrap() };
+        let binding = WorkProfileBinding {
+            profile_id: WorkProfileId::try_from(ID.to_owned()).unwrap(),
+            revision: WorkProfileRevision::try_from(1).unwrap(),
+        };
+        let original = WorkProfileRecord {
+            binding: binding.clone(),
+            display_name: WorkProfileName::try_from("Personal".to_owned()).unwrap(),
+        };
+        let renamed = WorkProfileRecord {
+            binding: WorkProfileBinding {
+                revision: binding.revision.checked_next().unwrap(),
+                ..binding.clone()
+            },
+            display_name: WorkProfileName::try_from("Renamed".to_owned()).unwrap(),
+        };
         assert_eq!(original.binding.profile_id, renamed.binding.profile_id);
         assert_eq!(original.binding.revision.get(), 1);
         let wire = serde_json::to_value(WorkProfileSelection::Named(binding)).unwrap();
-        assert_eq!(wire, serde_json::json!({"state":"named","binding":{"profileId":ID,"revision":1}}));
-        assert!(serde_json::from_value::<WorkProfileSelection>(serde_json::json!({"state":"named"})).is_err());
-        assert!(serde_json::from_value::<WorkProfileBinding>(serde_json::json!({"profileId":ID,"revision":1,"allowAll":true})).is_err());
+        assert_eq!(
+            wire,
+            serde_json::json!({"state":"named","binding":{"profileId":ID,"revision":1}})
+        );
+        assert!(
+            serde_json::from_value::<WorkProfileSelection>(serde_json::json!({"state":"named"}))
+                .is_err()
+        );
+        assert!(
+            serde_json::from_value::<WorkProfileBinding>(
+                serde_json::json!({"profileId":ID,"revision":1,"allowAll":true})
+            )
+            .is_err()
+        );
     }
 }
 ```
@@ -91,10 +155,14 @@ impl TryFrom<String> for WorkProfileId {
     }
 }
 impl From<WorkProfileId> for String {
-    fn from(value: WorkProfileId) -> Self { value.0 }
+    fn from(value: WorkProfileId) -> Self {
+        value.0
+    }
 }
 impl WorkProfileId {
-    pub fn as_str(&self) -> &str { &self.0 }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -110,11 +178,17 @@ impl TryFrom<u64> for WorkProfileRevision {
     }
 }
 impl From<WorkProfileRevision> for u64 {
-    fn from(value: WorkProfileRevision) -> Self { value.0 }
+    fn from(value: WorkProfileRevision) -> Self {
+        value.0
+    }
 }
 impl WorkProfileRevision {
-    pub fn get(self) -> u64 { self.0 }
-    pub fn checked_next(self) -> Result<Self, String> { Self::try_from(self.0 + 1) }
+    pub fn get(self) -> u64 {
+        self.0
+    }
+    pub fn checked_next(self) -> Result<Self, String> {
+        Self::try_from(self.0 + 1)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -130,17 +204,25 @@ pub struct WorkProfileName(String);
 impl TryFrom<String> for WorkProfileName {
     type Error = String;
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        if value.is_empty() || value.len() > 256 || value.trim() != value || value.chars().any(char::is_control) {
+        if value.is_empty()
+            || value.len() > 256
+            || value.trim() != value
+            || value.chars().any(char::is_control)
+        {
             return Err("invalid work profile display name".into());
         }
         Ok(Self(value))
     }
 }
 impl From<WorkProfileName> for String {
-    fn from(value: WorkProfileName) -> Self { value.0 }
+    fn from(value: WorkProfileName) -> Self {
+        value.0
+    }
 }
 impl WorkProfileName {
-    pub fn as_str(&self) -> &str { &self.0 }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -151,7 +233,12 @@ pub struct WorkProfileRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "state", content = "binding", rename_all = "camelCase", deny_unknown_fields)]
+#[serde(
+    tag = "state",
+    content = "binding",
+    rename_all = "camelCase",
+    deny_unknown_fields
+)]
 pub enum WorkProfileSelection {
     UnboundLegacy,
     Named(WorkProfileBinding),
@@ -178,7 +265,9 @@ use std::path::Path;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use thiserror::Error;
 
-use zeron_proto::{WorkProfileBinding, WorkProfileId, WorkProfileName, WorkProfileRecord, WorkProfileRevision};
+use zeron_proto::{
+    WorkProfileBinding, WorkProfileId, WorkProfileName, WorkProfileRecord, WorkProfileRevision,
+};
 
 macro_rules! token_type {
     ($name:ident, $max:expr) => {
@@ -694,7 +783,7 @@ mod tests {
 }
 ```
 - [ ] Run `cargo test --locked -p zeron-engine --lib work_profile_catalog::tests`; require7 catalog tests, including two-connection CAS, actual trigger rollback/reopen, future schema no-mutation, poison denial and scoped replay. Full scratch prototype ran11 tests including4 shared wire tests; production filtered catalog run must select7, not11.
-- [ ] Behavioral negative control: in scratch remove expected_revision comparison and prove concurrent/stale tests fail; restore. Do not inject a production fault boolean to make rollback tests pass. SQL trigger is test-only and must be removed/reopen verified within fixture.
+- [ ] Behavioral negative control: in scratch only, bypass both independent CAS protections: replace `if actual != expected_revision.get() {` with `if false {` and the SQL predicate `AND revision=?5` with `AND ?5 IS NOT NULL` (preserving the bound parameter count). Bypassing only the Rust comparison is insufficient because SQL still enforces the revision. Require both `per_profile_cas_and_stale_does_not_change_row` and `two_connections_competing_same_revision_exactly_one_wins` to fail assertions, not compilation. Restore extracted source byte-for-byte and rerun all tests green. Do not inject a production fault boolean to make rollback tests pass. SQL trigger is test-only and must be removed/reopen verified within fixture.
 - [ ] Format exact owned files and commit only module+declaration after core CI. This catalog does not authorize its caller: CatalogPrincipal must come from owner context. No external RPC takes arbitrary principal/actor from JSON.
 
 
