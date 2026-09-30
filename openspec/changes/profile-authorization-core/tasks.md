@@ -113,6 +113,7 @@ pub struct Request {
 }
 #[derive(Debug, Clone)]
 struct Policy {
+    binding: WorkProfileBinding,
     revision: u64,
     grants: Vec<Grant>,
 }
@@ -163,14 +164,21 @@ impl WorkAuthorizer {
                 return Err(Denial::StalePolicy);
             }
             if revision == current.revision {
-                return if current.grants == grants {
+                return if current.binding == *binding && current.grants == grants {
                     Ok(())
                 } else {
                     Err(Denial::StalePolicy)
                 };
             }
         }
-        state.policies.insert(key, Policy { revision, grants });
+        state.policies.insert(
+            key,
+            Policy {
+                binding: binding.clone(),
+                revision,
+                grants,
+            },
+        );
         Ok(())
     }
 
@@ -203,6 +211,9 @@ impl WorkAuthorizer {
         let state = self.state.read().map_err(|_| Denial::PolicyUnavailable)?;
         let key = (request.principal.clone(), binding.profile_id.clone());
         let policy = state.policies.get(&key).ok_or(Denial::StalePolicy)?;
+        if policy.binding != *binding {
+            return Err(Denial::ProfileMismatch);
+        }
         if policy.revision != request.expected_policy_revision {
             return Err(Denial::StalePolicy);
         }
@@ -247,6 +258,9 @@ impl WorkAuthorizer {
         let state = self.state.read().map_err(|_| Denial::PolicyUnavailable)?;
         let key = (permit.principal, binding.profile_id.clone());
         let policy = state.policies.get(&key).ok_or(Denial::StalePolicy)?;
+        if policy.binding != *binding {
+            return Err(Denial::ProfileMismatch);
+        }
         if policy.revision != permit.policy_revision {
             return Err(Denial::StalePolicy);
         }
@@ -516,9 +530,18 @@ mod tests {
     #[test]
     fn same_revision_publication_is_idempotent_only_for_identical_grants() {
         let (authorizer, principal, binding, resource, operation) = fixture();
-        let grant = Grant { operation, resource };
-        assert_eq!(authorizer.replace_policy(principal.clone(), &binding, 8, vec![grant]), Ok(()));
-        assert_eq!(authorizer.replace_policy(principal, &binding, 8, Vec::new()), Err(Denial::StalePolicy));
+        let grant = Grant {
+            operation,
+            resource,
+        };
+        assert_eq!(
+            authorizer.replace_policy(principal.clone(), &binding, 8, vec![grant]),
+            Ok(())
+        );
+        assert_eq!(
+            authorizer.replace_policy(principal, &binding, 8, Vec::new()),
+            Err(Denial::StalePolicy)
+        );
     }
 }
 ```
@@ -533,13 +556,13 @@ mod tests {
 - [ ] Add the complete test module below first, then the preceding implementation. The policy snapshot must return grants AND policy revision from the same SQLite row read; a separate revision query is forbidden because it can pair old grants with new authority.
 ```rust
 use crate::work_authorization::{Grant, Operation, Principal, Resource};
-use zeron_proto::{WorkProfileBinding, WorkProfileRevision};
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::{Component, Path};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use thiserror::Error;
+use zeron_proto::{WorkProfileBinding, WorkProfileRevision};
 
 const VERSION: i64 = 1;
 #[derive(Debug, Error)]
@@ -801,6 +824,7 @@ struct CoordinatorState {
     store: DurablePolicyStore,
     authorizer: crate::work_authorization::WorkAuthorizer,
     unavailable: bool,
+    recovery_key: Option<(Principal, zeron_proto::WorkProfileId)>,
     #[cfg(test)]
     fail_next_publication: bool,
 }
@@ -812,6 +836,7 @@ impl PolicyCoordinator {
                 store,
                 authorizer: crate::work_authorization::WorkAuthorizer::new(),
                 unavailable: false,
+                recovery_key: None,
                 #[cfg(test)]
                 fail_next_publication: false,
             }),
@@ -857,6 +882,7 @@ impl PolicyCoordinator {
             ));
         }
         state.unavailable = false;
+        state.recovery_key = None;
         Ok(())
     }
     pub fn replace(
@@ -872,6 +898,10 @@ impl PolicyCoordinator {
         // Replay also reloads the latest row. Never publish the historical
         // receipt's revision/grants over a later committed policy.
         let result = state.store.replace(replacement)?;
+        state.recovery_key = Some((
+            replacement.principal.clone(),
+            replacement.binding.profile_id.clone(),
+        ));
         if let Err(error) =
             Self::publish_latest(&mut state, &replacement.principal, &replacement.binding)
         {
@@ -886,6 +916,17 @@ impl PolicyCoordinator {
         binding: &WorkProfileBinding,
     ) -> Result<(), PolicyStoreError> {
         let mut state = self.state()?;
+        let key = (principal.clone(), binding.profile_id.clone());
+        if state
+            .recovery_key
+            .as_ref()
+            .is_some_and(|pending| pending != &key)
+        {
+            return Err(PolicyStoreError::Corrupt(
+                "recovery must reload the failed policy".into(),
+            ));
+        }
+        state.recovery_key = Some(key);
         state.unavailable = true;
         Self::publish_latest(&mut state, principal, binding)
     }
@@ -1527,7 +1568,10 @@ mod tests {
         );
 
         let ran_after_revoke = AtomicBool::new(false);
-        let stale_permit = authorizer.authorize(&stale_request).err().expect("stale request denied");
+        let stale_permit = authorizer
+            .authorize(&stale_request)
+            .err()
+            .expect("stale request denied");
         assert_eq!(stale_permit, Denial::StalePolicy);
         assert_eq!(
             authorizer.with_authorized_effect(
@@ -1711,8 +1755,216 @@ mod tests {
         ));
         assert!(!ran.load(Ordering::SeqCst));
     }
-}
 
+    #[test]
+    fn adversarial_unrelated_recovery_does_not_reopen_revoked_policy() {
+        use crate::work_authorization::{Denial, Request};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let d = tempdir().unwrap();
+        let coordinator = PolicyCoordinator::open(d.path().join("two-policies.db")).unwrap();
+        coordinator
+            .replace(&replacement(None, 1, "create-a"))
+            .unwrap();
+        let mut other = replacement(None, 1, "create-b");
+        other.principal.user_id = "other-user".into();
+        coordinator.replace(&other).unwrap();
+        let request = Request {
+            selection: zeron_proto::WorkProfileSelection::Named(b()),
+            principal: p(),
+            expected_policy_revision: 1,
+            operation: Operation::RunSession,
+            resource: Some(grant().resource),
+            migration_required: false,
+            unresolved: false,
+        };
+        let effects = AtomicUsize::new(0);
+        coordinator.with_admitted_effect(&request, || ()).unwrap();
+        let mut revoke = replacement(Some(1), 2, "revoke-a");
+        revoke.grants.clear();
+        coordinator.fail_next_publication();
+        assert!(matches!(
+            coordinator.replace(&revoke),
+            Err(PolicyStoreError::Corrupt(_))
+        ));
+        {
+            let state = coordinator.state().unwrap();
+            let durable = state.store.load(&p(), &b()).unwrap().unwrap();
+            assert_eq!(durable.policy_revision.get(), 2);
+            assert!(durable.grants.is_empty());
+        }
+        assert_eq!(
+            coordinator.with_admitted_effect(&request, || effects.fetch_add(1, Ordering::SeqCst)),
+            Err(Denial::PolicyUnavailable)
+        );
+        assert_eq!(effects.load(Ordering::SeqCst), 0);
+        assert!(
+            coordinator
+                .replace(&replacement(Some(2), 3, "blocked-write"))
+                .is_err()
+        );
+        let mut wrong_binding = b();
+        wrong_binding.revision = WorkProfileRevision::try_from(2).unwrap();
+        assert!(coordinator.recover(&p(), &wrong_binding).is_err());
+        assert!(
+            coordinator
+                .recover(&other.principal, &other.binding)
+                .is_err()
+        );
+        assert_eq!(
+            coordinator.state().unwrap().recovery_key,
+            Some((p(), b().profile_id))
+        );
+        let admission =
+            coordinator.with_admitted_effect(&request, || effects.fetch_add(1, Ordering::SeqCst));
+        eprintln!(
+            "finding2: durable A revision=2 grants=0; recover(B)=Err; A expected_policy_revision=1 admission={admission:?}; revoked_effects={}",
+            effects.load(Ordering::SeqCst)
+        );
+        assert_eq!(
+            effects.load(Ordering::SeqCst),
+            0,
+            "unrelated recovery must not execute A's durably revoked grant"
+        );
+        assert_eq!(admission, Err(Denial::PolicyUnavailable));
+        coordinator.recover(&p(), &b()).unwrap();
+        assert!(matches!(
+            coordinator.with_admitted_effect(&request, || ()),
+            Err(Denial::StalePolicy)
+        ));
+        let other_request = Request {
+            principal: other.principal.clone(),
+            ..request
+        };
+        coordinator
+            .with_admitted_effect(&other_request, || ())
+            .unwrap();
+        assert_eq!(effects.load(Ordering::SeqCst), 0);
+    }
+
+    fn adversarial_binding_revision_case(resource: Resource, operation: Operation) {
+        use crate::work_authorization::{Request, WorkAuthorizer};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let d = tempdir().unwrap();
+        let coordinator = PolicyCoordinator::open(d.path().join("catalog-revision.db")).unwrap();
+        let mut policy = replacement(None, 1, "catalog-revision");
+        policy.grants = vec![Grant {
+            operation: operation.clone(),
+            resource: resource.clone(),
+        }];
+        coordinator.replace(&policy).unwrap();
+        let evaluator = WorkAuthorizer::new();
+        evaluator
+            .replace_policy(p(), &b(), 1, policy.grants.clone())
+            .unwrap();
+        let mut request = Request {
+            selection: zeron_proto::WorkProfileSelection::Named(b()),
+            principal: p(),
+            expected_policy_revision: 1,
+            operation,
+            resource: Some(resource),
+            migration_required: false,
+            unresolved: false,
+        };
+        assert!(evaluator.authorize(&request).is_ok());
+        coordinator.with_admitted_effect(&request, || ()).unwrap();
+        let mut changed_binding = b();
+        changed_binding.revision = WorkProfileRevision::try_from(2).unwrap();
+        assert_ne!(changed_binding, b());
+        let durable_rejects = coordinator
+            .state()
+            .unwrap()
+            .store
+            .load(&p(), &changed_binding)
+            .is_err();
+        assert!(
+            durable_rejects,
+            "durable load must reject mismatched catalog revision"
+        );
+        assert_eq!(
+            evaluator.replace_policy(p(), &changed_binding, 1, policy.grants.clone()),
+            Err(crate::work_authorization::Denial::StalePolicy)
+        );
+        request.selection = zeron_proto::WorkProfileSelection::Named(changed_binding);
+        let evaluator_allows = evaluator.authorize(&request).is_ok();
+        let effects = AtomicUsize::new(0);
+        let admission =
+            coordinator.with_admitted_effect(&request, || effects.fetch_add(1, Ordering::SeqCst));
+        eprintln!(
+            "finding3: resource={:?}; published catalog revision=1 requested=2 policy revision=1; durable_rejects={durable_rejects}; evaluator_allows={evaluator_allows}; admission={admission:?}; effects={}",
+            request.resource,
+            effects.load(Ordering::SeqCst)
+        );
+        assert_eq!(
+            effects.load(Ordering::SeqCst),
+            0,
+            "foreign catalog binding revision must not execute an effect"
+        );
+        assert!(!evaluator_allows);
+        assert!(admission.is_err());
+    }
+
+    #[test]
+    fn adversarial_permit_rechecks_republished_catalog_binding() {
+        use crate::work_authorization::{Denial, Request, WorkAuthorizer};
+        let evaluator = WorkAuthorizer::new();
+        let resource = Resource::Repository {
+            canonical_root: "/workspace/repo".into(),
+            repository_id: "repo-1".into(),
+        };
+        let operation = Operation::ReadRepository;
+        let grants = vec![Grant {
+            operation: operation.clone(),
+            resource: resource.clone(),
+        }];
+        evaluator
+            .replace_policy(p(), &b(), 1, grants.clone())
+            .unwrap();
+        let request = Request {
+            selection: zeron_proto::WorkProfileSelection::Named(b()),
+            principal: p(),
+            expected_policy_revision: 1,
+            operation: operation.clone(),
+            resource: Some(resource.clone()),
+            migration_required: false,
+            unresolved: false,
+        };
+        let permit = evaluator.authorize(&request).unwrap();
+        let mut changed_binding = b();
+        changed_binding.revision = WorkProfileRevision::try_from(2).unwrap();
+        evaluator
+            .replace_policy(p(), &changed_binding, 2, grants)
+            .unwrap();
+        assert_eq!(
+            evaluator.with_authorized_effect(permit, &b(), &operation, &resource, || panic!(
+                "stale binding effect"
+            )),
+            Err::<(), _>(Denial::ProfileMismatch)
+        );
+    }
+
+    #[test]
+    fn adversarial_repository_catalog_binding_revision_is_enforced() {
+        adversarial_binding_revision_case(
+            Resource::Repository {
+                canonical_root: "/workspace/repo".into(),
+                repository_id: "repo-1".into(),
+            },
+            Operation::ReadRepository,
+        );
+    }
+
+    #[test]
+    fn adversarial_account_catalog_binding_revision_is_enforced() {
+        adversarial_binding_revision_case(
+            Resource::AgentAccount {
+                harness: "codex".into(),
+                slot_ref: "slot-1".into(),
+                principal: p(),
+            },
+            Operation::SelectAgentAccount,
+        );
+    }
+}
 ```
 - [ ] Run `cargo test --locked -p zeron-engine --lib work_policy_store::tests`, require13 tests. Run `work_authorization::tests` separately, require10. Current combined inventory is4 wire +7 catalog +10 evaluator +13 durable-policy/coordinator =34 tests. These counts must be confirmed by actual filtered listings, not inferred from a previous run.
 - [ ] Run `cargo clippy --workspace --all-targets --all-features -- -D warnings` after actual consumer integration. Do not suppress unused private module warnings to ship an unconsumed store. The core module visibility/API must match its reviewed consumer boundary, never expose a mutation RPC that accepts caller-supplied principal as authority.
