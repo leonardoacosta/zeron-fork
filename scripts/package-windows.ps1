@@ -62,6 +62,7 @@ try {
     Copy-Item -LiteralPath 'LICENSE','THIRD_PARTY_NOTICES.md' -Destination $stage
     $licenses = Join-Path $stage 'licenses/fonts'
     New-Item -ItemType Directory -Force -Path $licenses | Out-Null
+    Copy-Item -LiteralPath 'crates/ui/assets/file-icons/LICENSE.symbols' -Destination (Join-Path $stage 'licenses/LICENSE.symbols')
     Copy-Item -Path 'crates/ui/assets/fonts/licenses/*' -Destination $licenses
     Compress-Archive -Path "$stage/*" -DestinationPath "$stage.zip" -Force
     Copy-Item -LiteralPath './target/release/zeron.exe' -Destination "$stage.exe"

@@ -625,3 +625,12 @@ if __name__ == "__main__":
 The upstream-access blocker is superseded: `origin` is now `https://github.com/leonardoacosta/zeron-fork.git`; `upstream` preserves `https://github.com/zeronsh/zeron.git`. The fork default branch is `fork/phase1-foundation`, preserving both the verified local history and the divergent upstream-derived `main` without force-pushing either. Local `main` tracks the fork foundation branch.
 
 Active ruleset `24225939` requires `ui-promotion`, `preview-promotion`, and `windows-promotion`, with strict checks, a pull request, and no bypass actors. Inherited deploy/release/TestFlight/Cursor-update publication workflows are disabled. Test workflows remain enabled. Initial UI and Windows manual runs are running, not yet passing evidence. This documentation-only PR exercises unfiltered PR triggers and all three summary contexts. Hosted acceptance stays open until observed results and failure-blocks-merge evidence are recorded.
+
+
+## Hosted enforcement acceptance observed (2026-09-30)
+
+Owned fork PR1 (`https://github.com/leonardoacosta/zeron-fork/pull/1`) proves the previously blocked prerequisite. Docs-only head `d3241278059fe4a78d0ed38f2e729c556b3ad7a3` triggered all three workflows; missing fontconfig development libraries caused `rust-quality` failure and `ui-promotion` failure in run36668281334. GitHub reported PR mergeStateStatus `BLOCKED` under active strict ruleset24225939 (three summaries, no bypass actors). This is observed hosted enforcement, not just local structural testing.
+
+After adding the existing GPUI dependency installation to rust-quality, exact head `2144cc156531fc7fde229c6eb3f6aaa72a41e37d` passed UI run36671085487, Preview run36671085474 and Windows run36671085450, including all three promotion summaries. GitHub reported `CLEAN`; PR merged normally, without admin bypass, as `1a64409394e1d22e1e42a1b461c97087aa7978a0`. Native GUI opt-in remains excluded as designed. Both failed and repaired evidence are retained in `/home/nyaptor/.jcode/scratch/cipg/fork-{failure-blocked,green}-proof.json`.
+
+This supersedes historical hosted-access blockers for ci-promotion-gates. It does not promote unrelated changes or claim other PR revisions passed. Inherited publishing workflows remain disabled on the fork.

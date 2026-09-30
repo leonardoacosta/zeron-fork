@@ -33,6 +33,8 @@ install -m 755 "$BIN" "$STAGE/zeron"
 install -m 644 "$ROOT/dist/zeron.desktop" "$STAGE/zeron.desktop"
 install -m 644 "$ROOT/dist/zeron.png" "$STAGE/zeron.png"
 mkdir -p "$STAGE/licenses/fonts"
+cp "$ROOT/LICENSE" "$ROOT/THIRD_PARTY_NOTICES.md" "$STAGE/"
+cp "$ROOT/crates/ui/assets/file-icons/LICENSE.symbols" "$STAGE/licenses/"
 cp "$ROOT/crates/ui/assets/fonts/licenses/"* "$STAGE/licenses/fonts/"
 
 cat >"$STAGE/install.sh" <<'INSTALL'
@@ -43,6 +45,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 install -Dm755 "$HERE/zeron" "$HOME/.local/bin/zeron"
 install -Dm644 "$HERE/zeron.desktop" "$HOME/.local/share/applications/zeron.desktop"
 install -Dm644 "$HERE/zeron.png" "$HOME/.local/share/icons/hicolor/1024x1024/apps/zeron.png"
+mkdir -p "$HOME/.local/share/zeron/licenses"
+cp "$HERE/LICENSE" "$HERE/THIRD_PARTY_NOTICES.md" "$HOME/.local/share/zeron/"
+cp -R "$HERE/licenses/." "$HOME/.local/share/zeron/licenses/"
 command -v update-desktop-database >/dev/null 2>&1 \
   && update-desktop-database "$HOME/.local/share/applications" || true
 echo "Installed. Make sure ~/.local/bin is on your PATH."
