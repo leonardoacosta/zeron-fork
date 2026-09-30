@@ -217,7 +217,7 @@ Inspected source SHA256: `108896194bbe67ca2e6e63e42463d42d650731e3fec55896d78599
      pub fn assignment_mutation_result(
          &self,
          id: &str,
-@@ -1229,3 +1392,120 @@
+@@ -1229,3 +1392,122 @@
          );
      }
  }
@@ -289,6 +289,8 @@ Inspected source SHA256: `108896194bbe67ca2e6e63e42463d42d650731e3fec55896d78599
 +        store.conn().execute_batch("CREATE TRIGGER fail_assignment_execution_outbox BEFORE INSERT ON assignment_execution_outbox BEGIN SELECT RAISE(FAIL,'injected'); END;").unwrap();
 +        assert_eq!(store.claim_assignment_execution(&request()), Err(AssignmentExecutionError::Sqlite));
 +        assert!(store.pending_assignment_execution_outbox(10).unwrap().is_empty());
++        let execution_count: i64 = store.conn().query_row("SELECT count(*) FROM assignment_executions", [], |row| row.get(0)).unwrap();
++        assert_eq!(execution_count, 0, "failed outbox insertion must roll back the execution row");
 +        store.conn().execute_batch("DROP TRIGGER fail_assignment_execution_outbox;").unwrap();
 +        assert!(store.claim_assignment_execution(&request()).is_ok(), "failed claim left no operation-key row");
 +    }
