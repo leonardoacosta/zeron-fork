@@ -2,7 +2,7 @@
 
 **Goal:** Compare current embedded-browser source with bounded public documentation claims about candidate provider isolation, scope, stopping and evidence behavior.
 **Architecture:** Inspect local source read-only, then evaluate each identified product only from official public documentation. Do not launch browsers or invoke provider APIs.
-**Status:** Research planning only. No provider/interface selection or implementation readiness claim.
+**Status:** Bounded documentation/source research complete, reviewed 2026-09-30 against evidence recorded 2026-09-27. No provider/interface selection, runtime acceptance, implementation readiness, or prerequisite promotion claim.
 **Scope:** Only this change's `design.md` and `tasks.md` may be edited. No user profile mutation, private pages, credentials, API calls, network probes, installs/configuration changes, cloud uploads, or spend.
 
 ## R1. Recover authority and inspect local source
@@ -54,11 +54,11 @@ Only the two canonical files listed in scope may change. No browser/provider sta
 - R1: inspected `fork-prd.md`, execution-map design, spec, this design, prerequisite design, and only listed local source anchors. Local facts and exact spans are classified `local_source` in design.md. Graft queries returned no graph; source paths were then inspected directly. No fixture was run.
 - R2: official docs reviewed: WebKit profile/data-store article (2023-08-30); Playwright isolation, BrowserContext, Browser, authentication and tracing pages (retrieved 2026-09-27; pages did not state a pinned release in fetched content). URLs, sections, excerpts and limits are in design.md. Playwright is documentation subject only, not a selection.
 - R3: evidence rows, C01-C03 and unknown-prerequisite records, and complete provisional child adapter schema are in design.md. C01 blocked; C02 unknown; C03 unknown; prerequisite blocked. `write_operations=not authorized` retained.
-- R4: no browser/profile/private-page/provider/API/network-probe/install/config/cloud operation was performed. Planning validation remains to run below.
+- R4: no browser/profile/private-page/provider/API/network-probe/install/config/cloud operation was performed. Evidence/scenario records reviewed 2026-09-30; fresh planning validation and whitespace checks passed (exit 0). Historical source rows retain their stated dirty-tree provenance and are not reclassified as current-source or runtime observations.
 
 Required acceptance sentences retained exactly in design.md:
 “Provider supports screenshots but cannot isolate storage: does not satisfy session isolation.”
 “Provider close command returns before tool action stops: cancellation remains unverified.”
 “Provider needs cloud data upload: disclose data boundary before any private page use.”
 
-Validation: `python3 openspec/changes/prd-execution-map/validate.py` — exit 0 (`PASS: 36 child changes, all 19 PRD references, 10 CI barriers, acyclic dependencies, existing anchors and scenario mappings`; planning validation only). `git diff --check` — exit 0.
+Validation (rerun 2026-09-30): `python3 openspec/changes/prd-execution-map/validate.py` — exit 0 (`PASS: 36 child changes, all 19 PRD references, 10 CI barriers, acyclic dependencies, existing anchors and scenario mappings`; planning validation only). `git diff --check` — exit 0.
